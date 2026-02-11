@@ -4,6 +4,10 @@ export interface CardData {
   label: string;
   headline: string;
   reward: string;
+  /** Optional link for "Currently at" (e.g. company URL) */
+  url?: string;
+  /** Optional image URL for vemula-style card tile */
+  image?: string;
 }
 
 export const cards: CardData[] = [

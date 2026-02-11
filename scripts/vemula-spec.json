@@ -1,0 +1,116 @@
+{
+  "source": "From prior browser inspection + vemula.me structure. Exact values to match.",
+  "viewport": { "width": 375, "height": 812 },
+  "root": {
+    "height": "100%",
+    "minHeight": "0",
+    "display": "flex",
+    "flexDirection": "column",
+    "overflow": "hidden"
+  },
+  "container": {
+    "height": "100%",
+    "maxWidth": "100%",
+    "margin": "0 auto",
+    "padding": "0 20px"
+  },
+  "page": {
+    "height": "100%",
+    "minHeight": "0",
+    "display": "flex",
+    "flexDirection": "column"
+  },
+  "titleContainer": {
+    "height": "auto",
+    "paddingTop": "24px",
+    "paddingBottom": "16px",
+    "paddingLeft": "0",
+    "paddingRight": "0"
+  },
+  "pageTitle": {
+    "fontFamily": "serif (Instrument Serif / Georgia)",
+    "fontSize": "28px",
+    "fontWeight": "400",
+    "lineHeight": "1.25",
+    "color": "#000",
+    "letterSpacing": "-0.02em",
+    "margin": "0"
+  },
+  "subtitle": {
+    "display": "flex",
+    "alignItems": "center",
+    "gap": "8px",
+    "fontSize": "13px",
+    "color": "#666",
+    "marginTop": "0",
+    "marginBottom": "0",
+    "paddingTop": "8px",
+    "paddingBottom": "8px"
+  },
+  "subtitleLink": {
+    "color": "#0d9488",
+    "fontWeight": "600",
+    "textDecoration": "none"
+  },
+  "stackWrapper": {
+    "position": "absolute",
+    "top": "65%",
+    "left": "42%",
+    "transform": "translate(-50%, -50%)",
+    "width": "100%",
+    "height": "60vh",
+    "display": "flex",
+    "justifyContent": "center",
+    "alignItems": "center",
+    "pointerEvents": "none"
+  },
+  "stackWrapperInner": {
+    "position": "relative",
+    "width": "100%",
+    "height": "100%",
+    "maxWidth": "300px",
+    "pointerEvents": "auto"
+  },
+  "stackContainer": {
+    "position": "relative",
+    "width": "100%",
+    "height": "100%",
+    "perspective": "600px",
+    "margin": "0 auto"
+  },
+  "cardSize": {
+    "formula": "width: Math.min(300, 0.7 * viewportWidth), height: Math.min(400, 0.93 * viewportWidth)",
+    "at375": { "width": 262, "height": 349 }
+  },
+  "cardRotate": {
+    "position": "absolute",
+    "width": "100%",
+    "height": "100%",
+    "cursor": "grab",
+    "touchAction": "none",
+    "drag": true,
+    "dragConstraints": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+    "dragElastic": 0.6,
+    "rotateX": "useTransform(y, [-100, 100], [30, -30])",
+    "rotateY": "useTransform(x, [-100, 100], [-30, 30])"
+  },
+  "cardInner": {
+    "borderRadius": "20px",
+    "overflow": "hidden",
+    "width": "100%",
+    "height": "100%",
+    "boxShadow": "0 10px 40px rgba(0,0,0,0.15)",
+    "transformOrigin": "90% 90%"
+  },
+  "fan": {
+    "rotateZ": "(stack.length - index - 1) * 4 + (randomRotation ? random(-5, 5) : 0)",
+    "scale": "1 + index * 0.06 - stack.length * 0.06",
+    "transformOrigin": "90% 90%"
+  },
+  "spring": {
+    "stiffness": 300,
+    "damping": 20
+  },
+  "sensitivity": 100,
+  "clickThreshold": 10
+}

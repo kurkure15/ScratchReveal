@@ -81,8 +81,8 @@ export default function Card({ card }: CardProps) {
   return (
     <div
       style={{
-        width: 280,
-        height: 360,
+        width: '100%',
+        height: '100%',
         borderRadius: 20,
         backgroundColor: card.color,
         position: 'relative',
@@ -90,44 +90,66 @@ export default function Card({ card }: CardProps) {
         display: 'flex',
         flexDirection: 'column',
         userSelect: 'none',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
       }}
     >
-      {/* Label */}
+      {/* Top label, like the \"X\" in reference */}
       <div
         style={{
-          padding: '20px 22px',
+          padding: '18px 22px',
           color: 'white',
           fontSize: 13,
           fontWeight: 700,
           textTransform: 'uppercase',
-          letterSpacing: '0.15em',
+          letterSpacing: '0.18em',
         }}
       >
         {card.label}
       </div>
 
-      {/* SVG pattern overlay — bottom 60% */}
-      <svg
-        width="280"
-        height="360"
-        viewBox="0 0 280 360"
+      {/* Pattern fills the rest of the card, similar to graphic tiles */}
+      <div
         style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          opacity: 0.2,
-          pointerEvents: 'none',
+          flex: 1,
+          position: 'relative',
+          minHeight: 0,
         }}
       >
-        <defs>
-          <clipPath id={`clip-${card.id}`}>
-            <rect x="0" y="144" width="280" height="216" />
-          </clipPath>
-        </defs>
-        <g clipPath={`url(#clip-${card.id})`}>
-          {patterns[card.id]}
-        </g>
-      </svg>
+        {card.image ? (
+          <img
+            src={card.image}
+            alt=""
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block',
+            }}
+          />
+        ) : (
+          <svg
+            width="100%"
+            height="100%"
+            viewBox="0 0 280 360"
+            preserveAspectRatio="xMidYMid slice"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              opacity: 0.22,
+              pointerEvents: 'none',
+            }}
+          >
+            <defs>
+              <clipPath id={`clip-${card.id}`}>
+                <rect x="0" y="0" width="280" height="360" />
+              </clipPath>
+            </defs>
+            <g clipPath={`url(#clip-${card.id})`}>
+              {patterns[card.id]}
+            </g>
+          </svg>
+        )}
+      </div>
     </div>
   );
 }
