@@ -2,8 +2,8 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
 import Stack from './components/Stack';
 import Card from './components/Card';
-import ScratchOverlay from './components/ScratchOverlay';
-import { cards } from './data/cards';
+import ScratchInteraction from './components/interactions/ScratchInteraction';
+import { cards, type CardData } from './data/cards';
 import { initAudio, playCardTick } from './utils/sounds';
 
 // Card size from vemula.me: Math.min(300, 0.7*vw), Math.min(400, 0.93*vw)
@@ -22,7 +22,7 @@ function useCardSize() {
 
 function App() {
   const [topIndex, setTopIndex] = useState(0);
-  const [showScratch, setShowScratch] = useState(false);
+  const [activeScratchCard, setActiveScratchCard] = useState<CardData | null>(null);
   const [audioInitialized, setAudioInitialized] = useState(false);
   const cardSize = useCardSize();
 
@@ -38,10 +38,20 @@ function App() {
     playCardTick();
   }, []);
 
-  const handleOpenScratch = useCallback(() => {
+  const openScratchForCard = useCallback((card: CardData) => {
     ensureAudio();
-    setShowScratch(true);
+    setActiveScratchCard(card);
   }, [ensureAudio]);
+
+  const handleCardTap = useCallback((cardIndex: number) => {
+    const tappedCard = cards[cardIndex];
+    if (!tappedCard) return;
+    openScratchForCard(tappedCard);
+  }, [openScratchForCard]);
+
+  const handleOpenScratch = useCallback(() => {
+    openScratchForCard(cards[topIndex]);
+  }, [openScratchForCard, topIndex]);
 
   const currentCard = cards[topIndex];
   const cardElements = useMemo(
@@ -180,9 +190,9 @@ function App() {
                   cardWidth={cardSize.width}
                   cardHeight={cardSize.height}
                   randomRotation
-                  sendToBackOnClick
                   sensitivity={100}
                   onCardChange={handleCardChange}
+                  onCardTap={handleCardTap}
                 />
               </div>
             </div>
@@ -217,10 +227,12 @@ function App() {
       </div>
 
       <AnimatePresence>
-        {showScratch && (
-          <ScratchOverlay
-            card={currentCard}
-            onClose={() => setShowScratch(false)}
+        {activeScratchCard && (
+          <ScratchInteraction
+            cardColor={activeScratchCard.color}
+            revealText={activeScratchCard.reward}
+            onReveal={() => {}}
+            onClose={() => setActiveScratchCard(null)}
           />
         )}
       </AnimatePresence>

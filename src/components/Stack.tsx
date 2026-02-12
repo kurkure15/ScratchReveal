@@ -1,20 +1,66 @@
 import { motion, useMotionValue, useTransform, type PanInfo } from 'motion/react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 interface CardRotateProps {
   children: React.ReactNode;
   onSendToBack: () => void;
   sensitivity: number;
+  tapThreshold: number;
+  sendToBackOnTap: boolean;
+  onTap?: () => void;
 }
 
-function CardRotate({ children, onSendToBack, sensitivity }: CardRotateProps) {
+function CardRotate({
+  children,
+  onSendToBack,
+  sensitivity,
+  tapThreshold,
+  sendToBackOnTap,
+  onTap,
+}: CardRotateProps) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const rotateX = useTransform(y, [-100, 100], [30, -30]);
   const rotateY = useTransform(x, [-100, 100], [-30, 30]);
+  const pointerDownRef = useRef<{ x: number; y: number; time: number; pointerId: number } | null>(null);
+
+  function handleTapAction() {
+    if (sendToBackOnTap) {
+      onSendToBack();
+    } else {
+      onTap?.();
+    }
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    pointerDownRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      time: performance.now(),
+      pointerId: event.pointerId,
+    };
+  }
+
+  function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
+    const pointerDown = pointerDownRef.current;
+    pointerDownRef.current = null;
+    if (!pointerDown || pointerDown.pointerId !== event.pointerId) return;
+
+    const dx = event.clientX - pointerDown.x;
+    const dy = event.clientY - pointerDown.y;
+    const distance = Math.hypot(dx, dy);
+    const elapsed = performance.now() - pointerDown.time;
+
+    if (distance <= tapThreshold && elapsed <= 320) {
+      handleTapAction();
+    }
+  }
 
   function handleDragEnd(_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
-    if (Math.abs(info.offset.x) > sensitivity || Math.abs(info.offset.y) > sensitivity) {
+    const absX = Math.abs(info.offset.x);
+    const absY = Math.abs(info.offset.y);
+
+    if (absX > sensitivity || absY > sensitivity) {
       onSendToBack();
     }
     x.set(0);
@@ -39,6 +85,11 @@ function CardRotate({ children, onSendToBack, sensitivity }: CardRotateProps) {
       dragElastic={0.6}
       whileTap={{ cursor: 'grabbing' }}
       onDragEnd={handleDragEnd}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => {
+        pointerDownRef.current = null;
+      }}
     >
       {children}
     </motion.div>
@@ -52,8 +103,10 @@ interface StackProps {
   randomRotation?: boolean;
   sensitivity?: number;
   sendToBackOnClick?: boolean;
+  tapThreshold?: number;
   animationConfig?: { stiffness: number; damping: number };
   onCardChange?: (topIndex: number) => void;
+  onCardTap?: (cardIndex: number) => void;
 }
 
 function seededOffset(id: number): number {
@@ -69,7 +122,9 @@ export default function Stack({
   sensitivity = 100,
   animationConfig = { stiffness: 300, damping: 20 },
   sendToBackOnClick = false,
+  tapThreshold = 18,
   onCardChange,
+  onCardTap,
 }: StackProps) {
   const [stack, setStack] = useState<{ id: number; content: React.ReactNode }[]>(() =>
     cards.map((content, index) => ({ id: index + 1, content }))
@@ -112,6 +167,9 @@ export default function Stack({
             key={card.id}
             onSendToBack={() => sendToBack(card.id)}
             sensitivity={sensitivity}
+            tapThreshold={tapThreshold}
+            sendToBackOnTap={sendToBackOnClick}
+            onTap={() => onCardTap?.(card.id - 1)}
           >
             <motion.div
               style={{
@@ -124,7 +182,6 @@ export default function Stack({
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
-              onClick={() => sendToBackOnClick && sendToBack(card.id)}
               animate={{
                 rotateZ: (stack.length - index - 1) * 4 + randomOffset,
                 scale: 1 + index * 0.06 - stack.length * 0.06,
