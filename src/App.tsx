@@ -17,8 +17,8 @@ function useCardSize() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
   return useMemo(() => ({
-    width: 280,
-    height: 420,
+    width: 300,
+    height: 380,
   }), [vw]);
 }
 
@@ -80,7 +80,15 @@ function App() {
     });
   }, []);
 
-  const remainingCount = Math.max(cards.length - solvedCardIds.size, 0);
+  // Remaining = only cards that are actually in the visible stack
+  const remainingCount = useMemo(() => {
+    const stackIds = new Set(stackCards.map((card) => card.id));
+    let solvedInStack = 0;
+    solvedCardIds.forEach((id) => {
+      if (stackIds.has(id)) solvedInStack += 1;
+    });
+    return Math.max(stackCards.length - solvedInStack, 0);
+  }, [stackCards, solvedCardIds]);
 
   const cardElements = useMemo(
     () => stackCards.map((card) => <Card key={card.id} card={card} />),
@@ -124,7 +132,7 @@ function App() {
             key={remainingCount}
             style={{
               fontSize: 120,
-              fontWeight: 200,
+              fontWeight: 700,
               lineHeight: 1,
               color: '#D1D1D1',
             }}
@@ -138,10 +146,10 @@ function App() {
             style={{
               margin: 0,
               marginTop: 12,
-              fontSize: 17,
-              fontWeight: 400,
-              color: '#999',
-              maxWidth: 260,
+              fontSize: 16,
+              fontWeight: 600,
+              color: '#D1d1d1',
+              maxWidth: 280,
               lineHeight: 1.4,
             }}
           >
@@ -151,7 +159,7 @@ function App() {
 
         <div
           style={{
-            marginTop: 40,
+            marginTop: 60,
             width: '100%',
             display: 'flex',
             justifyContent: 'flex-start',
@@ -195,20 +203,20 @@ function App() {
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            gap: 12,
+            gap: 4,
           }}
         >
-          {cards.map((card) => {
+          {stackCards.map((card) => {
             const solved = solvedCardIds.has(card.id);
             return (
               <span
                 key={card.id}
                 style={{
-                  width: 10,
-                  height: 10,
+                  width: 8,
+                  height: 8,
                   borderRadius: '50%',
                   backgroundColor: solved ? card.color : 'transparent',
-                  border: solved ? 'none' : '1px solid #D1D1D1',
+                  border: solved ? 'none' : '1px solid #EFEFEF',
                 }}
               />
             );

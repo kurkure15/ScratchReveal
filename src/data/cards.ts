@@ -12,15 +12,6 @@ export interface CardData {
 
 export const cards: CardData[] = [
   {
-    id: "1",
-    color: "#1fc7ff",
-    label: "STAX.AI",
-    headline: "Building AI products with security first architecture.",
-    reward: "STAX.AI",
-    url: "https://stax.ai",
-    image: "https://vemula.me/images/cards/stax1.png",
-  },
-  {
     id: "2",
     color: "#0f5f34",
     label: "Truffle Security",
@@ -84,5 +75,15 @@ export const cards: CardData[] = [
     headline: "Always open to high leverage engineering conversations.",
     reward: "Open to Work",
     image: "https://vemula.me/images/cards/linkedin.png",
+  },
+  // STAX.AI as the front (top) card in the stack
+  {
+    id: "1",
+    color: "#1fc7ff",
+    label: "STAX.AI",
+    headline: "Building AI products with security first architecture.",
+    reward: "STAX.AI",
+    url: "https://stax.ai",
+    image: "https://vemula.me/images/cards/stax1.png",
   },
 ];
