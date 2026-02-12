@@ -93,21 +93,25 @@ export default function Card({ card }: CardProps) {
         boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
       }}
     >
-      {/* Top label, like the \"X\" in reference */}
       <div
         style={{
-          padding: '18px 22px',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 2,
+          padding: '18px 20px',
           color: 'white',
-          fontSize: 13,
-          fontWeight: 700,
+          fontSize: 12,
+          fontWeight: 600,
+          letterSpacing: '0.08em',
           textTransform: 'uppercase',
-          letterSpacing: '0.18em',
+          textShadow: '0 1px 6px rgba(0,0,0,0.24)',
         }}
       >
         {card.label}
       </div>
 
-      {/* Pattern fills the rest of the card, similar to graphic tiles */}
       <div
         style={{
           flex: 1,
@@ -116,16 +120,28 @@ export default function Card({ card }: CardProps) {
         }}
       >
         {card.image ? (
-          <img
-            src={card.image}
-            alt=""
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: 'block',
-            }}
-          />
+          <>
+            <img
+              src={card.image}
+              alt=""
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                objectPosition: 'center',
+                display: 'block',
+                transform: 'scale(1.01)',
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'linear-gradient(to bottom, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.01) 35%, rgba(0,0,0,0) 100%)',
+                pointerEvents: 'none',
+              }}
+            />
+          </>
         ) : (
           <svg
             width="100%"

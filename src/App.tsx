@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import Stack from './components/Stack';
 import Card from './components/Card';
 import ScratchOverlay from './components/ScratchOverlay';
@@ -61,7 +61,6 @@ function App() {
       }}
       onClick={ensureAudio}
     >
-      {/* Container — spec: height 100%, margin 0 auto, padding 0 20px */}
       <div
         style={{
           height: '100%',
@@ -74,45 +73,40 @@ function App() {
           position: 'relative',
         }}
       >
-        {/* Title container — spec: height auto, paddingTop 24px, paddingBottom 16px */}
         <div
           style={{
-            height: 'auto',
             paddingTop: 24,
             paddingBottom: 16,
             flexShrink: 0,
+            minHeight: 116,
           }}
         >
-          <AnimatePresence mode="wait">
-            <motion.h1
-              key={currentCard.id}
-              className="headline-serif"
-              style={{
-                fontSize: 28,
-                fontWeight: 400,
-                lineHeight: 1.25,
-                color: '#000',
-                letterSpacing: '-0.02em',
-                margin: 0,
-              }}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-            >
-              {currentCard.headline}
-            </motion.h1>
-          </AnimatePresence>
+          <h1
+            className="headline-serif"
+            style={{
+              fontSize: 27,
+              fontWeight: 400,
+              lineHeight: 1.22,
+              color: '#000',
+              letterSpacing: '-0.02em',
+              margin: 0,
+              maxWidth: 330,
+            }}
+          >
+            Hey there, I am <img src="https://vemula.me/images/profile.jpeg" alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', display: 'inline-block', verticalAlign: '-0.3em', margin: '0 4px' }} /> Charmin.
+            I work at STAX.AI and write software in SF
+            <img src="https://vemula.me/images/shine.png" alt="" style={{ width: 19, height: 19, display: 'inline-block', verticalAlign: 'baseline', marginLeft: 6 }} />.
+          </h1>
         </div>
 
-        {/* Subtitle — spec: flex, align center, gap 8px, fontSize 13, color #666, padding 8px 0 */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 8,
             fontSize: 13,
-            color: '#666',
+            lineHeight: 1.2,
+            color: '#6B6B6B',
             paddingTop: 8,
             paddingBottom: 8,
             flexShrink: 0,
@@ -143,7 +137,6 @@ function App() {
           )}
         </div>
 
-        {/* Middle: flex 1, position relative — stack wrapper is absolute inside */}
         <div
           style={{
             flex: 1,
@@ -151,7 +144,6 @@ function App() {
             position: 'relative',
           }}
         >
-          {/* Stack wrapper — spec: position absolute, top 65%, left 42%, translate(-50%,-50%), width 100%, height 60vh, flex center */}
           <div
             style={{
               position: 'absolute',
@@ -197,7 +189,6 @@ function App() {
           </div>
         </div>
 
-        {/* Scratch CTA + bottom safe area */}
         <div
           style={{
             flexShrink: 0,

@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 * {
@@ -12,7 +13,7 @@ html, body {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
   background: #fff;
   color: #000;
   -webkit-font-smoothing: antialiased;
@@ -26,5 +27,5 @@ body {
 }
 
 .headline-serif {
-  font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  font-family: 'Instrument Serif', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
 }

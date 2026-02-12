@@ -4,19 +4,80 @@ export interface CardData {
   label: string;
   headline: string;
   reward: string;
-  /** Optional link for "Currently at" (e.g. company URL) */
   url?: string;
-  /** Optional image URL for vemula-style card tile */
   image?: string;
 }
 
 export const cards: CardData[] = [
-  { id: "1", color: "#00D4FF", label: "EXCLUSIVE DEAL", headline: "Scratch to unlock your exclusive discount ✦", reward: "20% OFF" },
-  { id: "2", color: "#1B5E20", label: "MEMBER REWARD", headline: "A reward is hiding underneath ⟡", reward: "FREE SHIPPING" },
-  { id: "3", color: "#D32F2F", label: "FLASH SALE", headline: "Flash deals disappear fast ⚡", reward: "₹500 BACK" },
-  { id: "4", color: "#F9A825", label: "LUCKY DRAW", headline: "Feeling lucky today? 🎯", reward: "JACKPOT 50%" },
-  { id: "5", color: "#1A237E", label: "VIP ACCESS", headline: "VIP access — just for you ◆", reward: "BOGO FREE" },
-  { id: "6", color: "#FF6F61", label: "BONUS GIFT", headline: "A little bonus never hurts 🎁", reward: "TRY AGAIN" },
-  { id: "7", color: "#37474F", label: "MYSTERY BOX", headline: "What's inside the mystery box? ✧", reward: "20% OFF" },
-  { id: "8", color: "#7B1FA2", label: "CASHBACK", headline: "Cash back in your pocket 💰", reward: "₹500 BACK" },
+  {
+    id: "1",
+    color: "#1fc7ff",
+    label: "STAX.AI",
+    headline: "Building AI products with security first architecture.",
+    reward: "STAX.AI",
+    url: "https://stax.ai",
+    image: "https://vemula.me/images/cards/stax1.png",
+  },
+  {
+    id: "2",
+    color: "#0f5f34",
+    label: "Truffle Security",
+    headline: "Building modern AppSec and secrets tooling.",
+    reward: "Truffle Security",
+    url: "https://www.trufflesecurity.com",
+    image: "https://vemula.me/images/cards/stax2.png",
+  },
+  {
+    id: "3",
+    color: "#d32622",
+    label: "CNN",
+    headline: "Worked on reliability and distribution at global scale.",
+    reward: "CNN",
+    url: "https://www.cnn.com",
+    image: "https://vemula.me/images/cards/truffle.png",
+  },
+  {
+    id: "4",
+    color: "#f4a51f",
+    label: "Prototypes.com",
+    headline: "Rapid concepting and product storytelling.",
+    reward: "Prototypes.com",
+    url: "https://prototypes.com",
+    image: "https://vemula.me/images/cards/cnn.png",
+  },
+  {
+    id: "5",
+    color: "#1d2f96",
+    label: "Substack",
+    headline: "Writing about code, product, and systems work.",
+    reward: "Substack",
+    url: "https://substack.com",
+    image: "https://vemula.me/images/cards/prototypes.png",
+  },
+  {
+    id: "6",
+    color: "#f26e52",
+    label: "Dribbble",
+    headline: "Design experiments and interaction snapshots.",
+    reward: "Dribbble",
+    url: "https://dribbble.com",
+    image: "https://vemula.me/images/cards/substack.png",
+  },
+  {
+    id: "7",
+    color: "#2d3d47",
+    label: "LinkedIn",
+    headline: "Career history and project breakdowns.",
+    reward: "LinkedIn",
+    url: "https://linkedin.com",
+    image: "https://vemula.me/images/cards/dribbble.png",
+  },
+  {
+    id: "8",
+    color: "#6326a8",
+    label: "Open to Work",
+    headline: "Always open to high leverage engineering conversations.",
+    reward: "Open to Work",
+    image: "https://vemula.me/images/cards/linkedin.png",
+  },
 ];

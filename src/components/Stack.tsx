@@ -1,5 +1,5 @@
 import { motion, useMotionValue, useTransform, type PanInfo } from 'motion/react';
-import { useState, useRef } from 'react';
+import { useState, useCallback } from 'react';
 
 interface CardRotateProps {
   children: React.ReactNode;
@@ -56,6 +56,11 @@ interface StackProps {
   onCardChange?: (topIndex: number) => void;
 }
 
+function seededOffset(id: number): number {
+  const seed = Math.sin(id * 999.91) * 10000;
+  return (seed - Math.floor(seed)) * 10 - 5;
+}
+
 export default function Stack({
   cards = [],
   cardWidth,
@@ -69,21 +74,26 @@ export default function Stack({
   const [stack, setStack] = useState<{ id: number; content: React.ReactNode }[]>(() =>
     cards.map((content, index) => ({ id: index + 1, content }))
   );
-
-  const onCardChangeRef = useRef(onCardChange);
-  onCardChangeRef.current = onCardChange;
-
-  const sendToBack = (id: number) => {
+  const [randomOffsets] = useState<Map<number, number>>(() => {
+    const offsets = new Map<number, number>();
+    cards.forEach((_, index) => {
+      const id = index + 1;
+      offsets.set(id, randomRotation ? seededOffset(id) : 0);
+    });
+    return offsets;
+  });
+  const sendToBack = useCallback((id: number) => {
     setStack((prev) => {
       const newStack = [...prev];
       const index = newStack.findIndex((card) => card.id === id);
+      if (index < 0) return prev;
       const [card] = newStack.splice(index, 1);
       newStack.unshift(card);
       const newTopId = newStack[newStack.length - 1].id - 1;
-      setTimeout(() => onCardChangeRef.current?.(newTopId), 0);
+      setTimeout(() => onCardChange?.(newTopId), 0);
       return newStack;
     });
-  };
+  }, [onCardChange]);
 
   return (
     <div
@@ -96,7 +106,7 @@ export default function Stack({
       }}
     >
       {stack.map((card, index) => {
-        const randomOffset = randomRotation ? Math.random() * 10 - 5 : 0;
+        const randomOffset = randomOffsets.get(card.id) ?? 0;
         return (
           <CardRotate
             key={card.id}

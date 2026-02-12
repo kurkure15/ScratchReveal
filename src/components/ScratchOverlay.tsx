@@ -3,10 +3,16 @@ import { motion, AnimatePresence, type PanInfo } from 'motion/react';
 import type { CardData } from '../data/cards';
 import { playRevealChime } from '../utils/sounds';
 
+function seededUnit(seed: number): number {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+}
+
 // Confetti piece component
-function ConfettiPiece({ delay, color }: { delay: number; color: string }) {
-  const startX = Math.random() * 100;
-  const drift = (Math.random() - 0.5) * 120;
+function ConfettiPiece({ delay, color, seed }: { delay: number; color: string; seed: number }) {
+  const startX = seededUnit(seed) * 100;
+  const drift = (seededUnit(seed + 1) - 0.5) * 120;
+  const rotateTo = seededUnit(seed + 2) * 720 - 360;
 
   return (
     <motion.div
@@ -25,7 +31,7 @@ function ConfettiPiece({ delay, color }: { delay: number; color: string }) {
         y: [0, 500],
         x: [0, drift],
         opacity: [1, 0],
-        rotate: [0, Math.random() * 720 - 360],
+        rotate: [0, rotateTo],
       }}
       transition={{
         duration: 1.8,
@@ -324,6 +330,7 @@ export default function ScratchOverlay({ card, onClose }: ScratchOverlayProps) {
                   key={i}
                   delay={i * 0.05}
                   color={CONFETTI_COLORS[i % CONFETTI_COLORS.length]}
+                  seed={i + 1}
                 />
               ))}
             </div>
