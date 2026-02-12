@@ -6,6 +6,8 @@ export interface CardData {
   reward: string;
   url?: string;
   image?: string;
+  /** If false, card is not included in the fanned stack (still used for dots/count). */
+  includeInStack?: boolean;
 }
 
 export const cards: CardData[] = [
@@ -44,6 +46,7 @@ export const cards: CardData[] = [
     reward: "Prototypes.com",
     url: "https://prototypes.com",
     image: "https://vemula.me/images/cards/cnn.png",
+    includeInStack: false,
   },
   {
     id: "5",
@@ -53,6 +56,7 @@ export const cards: CardData[] = [
     reward: "Substack",
     url: "https://substack.com",
     image: "https://vemula.me/images/cards/prototypes.png",
+    includeInStack: false,
   },
   {
     id: "6",
@@ -71,6 +75,7 @@ export const cards: CardData[] = [
     reward: "LinkedIn",
     url: "https://linkedin.com",
     image: "https://vemula.me/images/cards/dribbble.png",
+    includeInStack: false,
   },
   {
     id: "8",

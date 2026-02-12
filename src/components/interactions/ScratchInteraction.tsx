@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, type PanInfo } from 'motion/react';
 import confetti from 'canvas-confetti';
+import { ScratchSoundEngine } from '../../utils/sounds';
 
 interface ScratchInteractionProps {
   cardColor: string;
@@ -43,7 +44,7 @@ const BRUSH_RADIUS = 21;
 const BRUSH_DIAMETER = 42;
 const SCRATCH_HINT_THRESHOLD = 0.6;
 const SCRATCH_REVEAL_THRESHOLD = 0.75;
-const HAPTIC_STEP_DISTANCE = 35;
+const HAPTIC_STEP_DISTANCE = 25;
 const MAX_PARTICLES = 320;
 const SPARKLE_COLORS = ['#FFFFFF', '#FFD700', '#C0C0C0', '#FFFACD'];
 
@@ -122,6 +123,8 @@ export default function ScratchInteraction({
   const particleRafRef = useRef<number | null>(null);
   const timeoutIdsRef = useRef<number[]>([]);
   const revealTriggeredRef = useRef(false);
+  const scratchAudioCtxRef = useRef<AudioContext | null>(null);
+  const scratchSoundEngineRef = useRef<ScratchSoundEngine | null>(null);
 
   const [scratchOpacity, setScratchOpacity] = useState(1);
   const [revealed, setRevealed] = useState(false);
@@ -137,6 +140,27 @@ export default function ScratchInteraction({
   const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
     const timeoutId = window.setTimeout(fn, ms);
     timeoutIdsRef.current.push(timeoutId);
+  }, []);
+
+  const ensureScratchAudioContext = useCallback((): AudioContext | null => {
+    try {
+      if (scratchAudioCtxRef.current) {
+        if (!scratchSoundEngineRef.current) {
+          scratchSoundEngineRef.current = new ScratchSoundEngine(scratchAudioCtxRef.current);
+        }
+        return scratchAudioCtxRef.current;
+      }
+
+      const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return null;
+
+      const ctx = new AudioCtx();
+      scratchAudioCtxRef.current = ctx;
+      scratchSoundEngineRef.current = new ScratchSoundEngine(ctx);
+      return ctx;
+    } catch {
+      return null;
+    }
   }, []);
 
   const setupCanvas = useCallback((canvas: HTMLCanvasElement, width: number, height: number): CanvasRenderingContext2D | null => {
@@ -501,15 +525,28 @@ export default function ScratchInteraction({
     if (hapticDistanceRef.current >= HAPTIC_STEP_DISTANCE) {
       hapticDistanceRef.current = 0;
       try {
-        navigator.vibrate(3);
+        navigator.vibrate(2);
       } catch {
         // no-op on unsupported devices
+      }
+
+      const audioCtx = ensureScratchAudioContext();
+      if (audioCtx && scratchSoundEngineRef.current) {
+        try {
+          if (audioCtx.state === 'suspended') {
+            void audioCtx.resume().then(() => scratchSoundEngineRef.current?.playTick());
+          } else {
+            scratchSoundEngineRef.current.playTick();
+          }
+        } catch {
+          // no-op on audio failures
+        }
       }
     }
 
     lastPointRef.current = point;
     return distance;
-  }, [markCellsAtPoint]);
+  }, [ensureScratchAudioContext, markCellsAtPoint]);
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
     if (revealTriggeredRef.current || activePointerIdRef.current !== null) return;
@@ -524,6 +561,10 @@ export default function ScratchInteraction({
     lastPointRef.current = null;
     moveCounterRef.current = 0;
     hapticDistanceRef.current = 0;
+    const audioCtx = ensureScratchAudioContext();
+    if (audioCtx?.state === 'suspended') {
+      void audioCtx.resume();
+    }
 
     const point = getLocalPoint(event);
     if (!point) return;
@@ -531,7 +572,7 @@ export default function ScratchInteraction({
 
     const spawnCount = Math.floor(randomBetween(2, 5));
     spawnParticlesAt(point.x, point.y, spawnCount);
-  }, [getLocalPoint, scratchAt, spawnParticlesAt]);
+  }, [ensureScratchAudioContext, getLocalPoint, scratchAt, spawnParticlesAt]);
 
   const handlePointerMove = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawingRef.current || activePointerIdRef.current !== event.pointerId) return;
@@ -571,6 +612,13 @@ export default function ScratchInteraction({
     maybeHandleRevealThreshold();
   }, [maybeHandleRevealThreshold]);
 
+  const handleCardDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (!revealed) return;
+    if (info.offset.y > 100) {
+      onClose?.();
+    }
+  }, [onClose, revealed]);
+
   useEffect(() => {
     const card = cardRef.current;
     const scratchCanvas = scratchCanvasRef.current;
@@ -608,6 +656,13 @@ export default function ScratchInteraction({
     return () => {
       clearScheduledTimeouts();
       stopParticleLoop();
+
+      const audioCtx = scratchAudioCtxRef.current;
+      if (audioCtx) {
+        void audioCtx.close().catch(() => undefined);
+        scratchAudioCtxRef.current = null;
+      }
+      scratchSoundEngineRef.current = null;
     };
   }, [clearScheduledTimeouts, stopParticleLoop]);
 
@@ -616,15 +671,12 @@ export default function ScratchInteraction({
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 80,
+        height: '100dvh',
+        zIndex: 1000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingTop: 'max(20px, env(safe-area-inset-top))',
-        paddingRight: 'max(20px, env(safe-area-inset-right))',
-        paddingBottom: 'max(20px, env(safe-area-inset-bottom))',
-        paddingLeft: 'max(20px, env(safe-area-inset-left))',
-        backgroundColor: 'rgba(0,0,0,0.52)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
         touchAction: 'manipulation',
         overscrollBehavior: 'none',
       }}
@@ -638,19 +690,23 @@ export default function ScratchInteraction({
           type="button"
           onClick={onClose}
           style={{
-            position: 'absolute',
-            top: 'max(16px, env(safe-area-inset-top))',
-            right: 'max(16px, env(safe-area-inset-right))',
-            width: 38,
-            height: 38,
+            position: 'fixed',
+            top: 16,
+            right: 16,
+            width: 40,
+            height: 40,
             border: 'none',
             borderRadius: '50%',
-            background: 'rgba(255,255,255,0.2)',
-            color: '#fff',
-            fontSize: 20,
+            background: '#FFFFFF',
+            color: '#111111',
+            fontSize: 24,
             lineHeight: 1,
             cursor: 'pointer',
-            backdropFilter: 'blur(4px)',
+            zIndex: 1020,
+            boxShadow: '0 8px 22px rgba(0,0,0,0.22)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 0,
           }}
         >
           ×
@@ -661,9 +717,8 @@ export default function ScratchInteraction({
         ref={cardRef}
         style={{
           position: 'relative',
-          width: 'min(92vw, 360px)',
-          maxWidth: 360,
-          aspectRatio: '280 / 360',
+          width: 'min(90vw, 420px)',
+          height: 'min(60vh, 560px)',
           borderRadius: 20,
           overflow: 'hidden',
           backgroundColor: cardColor,
@@ -672,6 +727,14 @@ export default function ScratchInteraction({
           touchAction: 'manipulation',
           animation: shaking ? 'cardShake 500ms ease-out' : 'none',
         }}
+        initial={{ opacity: 0, y: 20, scale: 0.94 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 20, scale: 0.94 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+        drag={revealed ? 'y' : false}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={0.25}
+        onDragEnd={handleCardDragEnd}
       >
         <div
           style={{
@@ -730,6 +793,7 @@ export default function ScratchInteraction({
             zIndex: 2,
             touchAction: 'none',
             opacity: scratchOpacity,
+            pointerEvents: revealed ? 'none' : 'auto',
             transition: `opacity ${revealed ? 0.3 : 0.5}s ease-out`,
           }}
           onPointerDown={handlePointerDown}

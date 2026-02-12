@@ -1,4 +1,5 @@
 import type { CardData } from '../data/cards';
+import scratchImage from '../assets/Scratch.png';
 
 // SVG patterns — each card gets a unique geometric pattern
 const patterns: Record<string, React.ReactNode> = {
@@ -78,6 +79,8 @@ interface CardProps {
 }
 
 export default function Card({ card }: CardProps) {
+  const cardImage = card.id === '1' ? scratchImage : card.image;
+
   return (
     <div
       style={{
@@ -87,8 +90,6 @@ export default function Card({ card }: CardProps) {
         backgroundColor: card.color,
         position: 'relative',
         overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
         userSelect: 'none',
         boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
       }}
@@ -107,6 +108,8 @@ export default function Card({ card }: CardProps) {
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
           textShadow: '0 1px 6px rgba(0,0,0,0.24)',
+          pointerEvents: 'none',
+          userSelect: 'none',
         }}
       >
         {card.label}
@@ -114,23 +117,25 @@ export default function Card({ card }: CardProps) {
 
       <div
         style={{
-          flex: 1,
-          position: 'relative',
-          minHeight: 0,
+          position: 'absolute',
+          inset: 0,
         }}
       >
-        {card.image ? (
+        {cardImage ? (
           <>
             <img
-              src={card.image}
+              src={cardImage}
               alt=""
+              draggable={false}
+              onDragStart={(event) => event.preventDefault()}
               style={{
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
                 objectPosition: 'center',
                 display: 'block',
-                transform: 'scale(1.01)',
+                pointerEvents: 'none',
+                userSelect: 'none',
               }}
             />
             <div

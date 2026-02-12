@@ -7,6 +7,9 @@ interface CardRotateProps {
   sensitivity: number;
   tapThreshold: number;
   sendToBackOnTap: boolean;
+  rotation: number;
+  scale: number;
+  animationConfig: { stiffness: number; damping: number };
   onTap?: () => void;
 }
 
@@ -16,6 +19,9 @@ function CardRotate({
   sensitivity,
   tapThreshold,
   sendToBackOnTap,
+  rotation,
+  scale,
+  animationConfig,
   onTap,
 }: CardRotateProps) {
   const x = useMotionValue(0);
@@ -79,6 +85,13 @@ function CardRotate({
         y,
         rotateX,
         rotateY,
+        borderRadius: 20,
+        overflow: 'hidden',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        willChange: 'transform',
       }}
       drag
       dragConstraints={{ top: 0, right: 0, bottom: 0, left: 0 }}
@@ -89,6 +102,17 @@ function CardRotate({
       onPointerUp={handlePointerUp}
       onPointerCancel={() => {
         pointerDownRef.current = null;
+      }}
+      animate={{
+        rotateZ: rotation,
+        scale,
+        transformOrigin: '90% 90%',
+      }}
+      initial={false}
+      transition={{
+        type: 'spring',
+        stiffness: animationConfig.stiffness,
+        damping: animationConfig.damping,
       }}
     >
       {children}
@@ -119,7 +143,7 @@ export default function Stack({
   cardWidth,
   cardHeight,
   randomRotation = false,
-  sensitivity = 100,
+  sensitivity = 140,
   animationConfig = { stiffness: 300, damping: 20 },
   sendToBackOnClick = false,
   tapThreshold = 18,
@@ -154,51 +178,47 @@ export default function Stack({
     <div
       style={{
         position: 'relative',
-        width: cardWidth,
+        width: '100%',
         height: cardHeight,
+        display: 'flex',
+        justifyContent: 'center',
         perspective: 600,
         margin: '0 auto',
+        overflow: 'visible',
       }}
     >
-      {stack.map((card, index) => {
-        const randomOffset = randomOffsets.get(card.id) ?? 0;
-        return (
-          <CardRotate
-            key={card.id}
-            onSendToBack={() => sendToBack(card.id)}
-            sensitivity={sensitivity}
-            tapThreshold={tapThreshold}
-            sendToBackOnTap={sendToBackOnClick}
-            onTap={() => onCardTap?.(card.id - 1)}
-          >
-            <motion.div
-              style={{
-                borderRadius: 20,
-                overflow: 'hidden',
-                width: '100%',
-                height: '100%',
-                boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              animate={{
-                rotateZ: (stack.length - index - 1) * 4 + randomOffset,
-                scale: 1 + index * 0.06 - stack.length * 0.06,
-                transformOrigin: '90% 90%',
-              }}
-              initial={false}
-              transition={{
-                type: 'spring',
-                stiffness: animationConfig.stiffness,
-                damping: animationConfig.damping,
-              }}
+      <div
+        style={{
+          position: 'relative',
+          width: cardWidth,
+          height: '100%',
+          margin: '0 auto',
+          overflow: 'visible',
+        }}
+      >
+        {stack.map((card, index) => {
+          const randomOffset = randomOffsets.get(card.id) ?? 0;
+          const depth = stack.length - index - 1;
+          const rotation = depth * 4 + randomOffset;
+          const scale = 1 + index * 0.06 - stack.length * 0.06;
+
+          return (
+            <CardRotate
+              key={card.id}
+              onSendToBack={() => sendToBack(card.id)}
+              sensitivity={sensitivity}
+              tapThreshold={tapThreshold}
+              sendToBackOnTap={sendToBackOnClick}
+              rotation={rotation}
+              scale={scale}
+              animationConfig={animationConfig}
+              onTap={() => onCardTap?.(index)}
             >
               {card.content}
-            </motion.div>
-          </CardRotate>
-        );
-      })}
+            </CardRotate>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -1,12 +1,14 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import Stack from './components/Stack';
 import Card from './components/Card';
 import ScratchInteraction from './components/interactions/ScratchInteraction';
+import ComingSoonInteraction from './components/interactions/ComingSoonInteraction';
 import { cards, type CardData } from './data/cards';
-import { initAudio, playCardTick } from './utils/sounds';
 
-// Card size from vemula.me: Math.min(300, 0.7*vw), Math.min(400, 0.93*vw)
+const SOLVED_STORAGE_KEY = 'solvedCards';
+
+// Match React Bits Stack demo card footprint.
 function useCardSize() {
   const [vw, setVw] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 375));
   useEffect(() => {
@@ -15,48 +17,74 @@ function useCardSize() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
   return useMemo(() => ({
-    width: Math.min(300, 0.7 * vw),
-    height: Math.min(400, 0.93 * vw),
+    width: 280,
+    height: 420,
   }), [vw]);
 }
 
 function App() {
-  const [topIndex, setTopIndex] = useState(0);
   const [activeScratchCard, setActiveScratchCard] = useState<CardData | null>(null);
-  const [audioInitialized, setAudioInitialized] = useState(false);
+  const [solvedCardIds, setSolvedCardIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const stored = localStorage.getItem(SOLVED_STORAGE_KEY);
+      if (!stored) return new Set();
+
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return new Set();
+
+      const validCardIds = new Set(cards.map((card) => card.id));
+      const restored = new Set<string>();
+      parsed.forEach((id) => {
+        if (typeof id === 'string' && validCardIds.has(id)) {
+          restored.add(id);
+        }
+      });
+      return restored;
+    } catch {
+      return new Set();
+    }
+  });
   const cardSize = useCardSize();
 
-  const ensureAudio = useCallback(() => {
-    if (!audioInitialized) {
-      initAudio();
-      setAudioInitialized(true);
-    }
-  }, [audioInitialized]);
+  // Only show a subset in the fanned stack (exclude visually white/neutral cards).
+  const stackCards = useMemo(
+    () => cards.filter((card) => card.includeInStack !== false),
+    []
+  );
 
-  const handleCardChange = useCallback((newTopIndex: number) => {
-    setTopIndex(newTopIndex);
-    playCardTick();
-  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem(SOLVED_STORAGE_KEY, JSON.stringify(Array.from(solvedCardIds)));
+    } catch {
+      // ignore storage failures
+    }
+  }, [solvedCardIds]);
 
   const openScratchForCard = useCallback((card: CardData) => {
-    ensureAudio();
     setActiveScratchCard(card);
-  }, [ensureAudio]);
+  }, []);
 
-  const handleCardTap = useCallback((cardIndex: number) => {
-    const tappedCard = cards[cardIndex];
+  const handleCardTap = useCallback((stackIndex: number) => {
+    const tappedCard = stackCards[stackIndex];
     if (!tappedCard) return;
     openScratchForCard(tappedCard);
-  }, [openScratchForCard]);
+  }, [openScratchForCard, stackCards]);
 
-  const handleOpenScratch = useCallback(() => {
-    openScratchForCard(cards[topIndex]);
-  }, [openScratchForCard, topIndex]);
+  const handleCardSolved = useCallback((cardId: string) => {
+    setSolvedCardIds((previous) => {
+      if (previous.has(cardId)) return previous;
+      const next = new Set(previous);
+      next.add(cardId);
+      return next;
+    });
+  }, []);
 
-  const currentCard = cards[topIndex];
+  const remainingCount = Math.max(cards.length - solvedCardIds.size, 0);
+
   const cardElements = useMemo(
-    () => cards.map((card) => <Card key={card.id} card={card} />),
-    []
+    () => stackCards.map((card) => <Card key={card.id} card={card} />),
+    [stackCards]
   );
 
   return (
@@ -66,10 +94,9 @@ function App() {
         minHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',
+        overflow: 'visible',
         backgroundColor: '#fff',
       }}
-      onClick={ensureAudio}
     >
       <div
         style={{
@@ -77,124 +104,85 @@ function App() {
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
+          width: '100%',
           maxWidth: '100%',
           margin: '0 auto',
-          padding: '0 20px',
+          padding: 24,
           position: 'relative',
+          overflow: 'visible',
+          visibility: activeScratchCard ? 'hidden' : 'visible',
+          pointerEvents: activeScratchCard ? 'none' : 'auto',
         }}
       >
         <div
           style={{
-            paddingTop: 24,
-            paddingBottom: 16,
             flexShrink: 0,
-            minHeight: 116,
+            textAlign: 'left',
           }}
         >
-          <h1
-            className="headline-serif"
+          <motion.div
+            key={remainingCount}
             style={{
-              fontSize: 27,
-              fontWeight: 400,
-              lineHeight: 1.22,
-              color: '#000',
-              letterSpacing: '-0.02em',
+              fontSize: 120,
+              fontWeight: 200,
+              lineHeight: 1,
+              color: '#D1D1D1',
+            }}
+            initial={{ scale: 1 }}
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+          >
+            {remainingCount}
+          </motion.div>
+          <p
+            style={{
               margin: 0,
-              maxWidth: 330,
+              marginTop: 12,
+              fontSize: 17,
+              fontWeight: 400,
+              color: '#999',
+              maxWidth: 260,
+              lineHeight: 1.4,
             }}
           >
-            Hey there, I am <img src="https://vemula.me/images/profile.jpeg" alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', display: 'inline-block', verticalAlign: '-0.3em', margin: '0 4px' }} /> Charmin.
-            I work at STAX.AI and write software in SF
-            <img src="https://vemula.me/images/shine.png" alt="" style={{ width: 19, height: 19, display: 'inline-block', verticalAlign: 'baseline', marginLeft: 6 }} />.
-          </h1>
+            Not everything satisfying is obvious.
+          </p>
         </div>
 
         <div
           style={{
+            marginTop: 40,
+            width: '100%',
             display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 13,
-            lineHeight: 1.2,
-            color: '#6B6B6B',
-            paddingTop: 8,
-            paddingBottom: 8,
-            flexShrink: 0,
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              backgroundColor: '#34C759',
-              flexShrink: 0,
-            }}
-            aria-hidden
-          />
-          <span>Currently at</span>
-          {currentCard.url ? (
-            <a
-              href={currentCard.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: '#0d9488', fontWeight: 600, textDecoration: 'none' }}
-            >
-              {currentCard.label}
-            </a>
-          ) : (
-            <span style={{ color: '#000', fontWeight: 600 }}>{currentCard.label}</span>
-          )}
-        </div>
-
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            position: 'relative',
+            justifyContent: 'flex-start',
+            overflow: 'visible',
           }}
         >
           <div
             style={{
-              position: 'absolute',
-              top: '65%',
-              left: '42%',
-              transform: 'translate(-50%, -50%)',
               width: '100%',
-              height: '60vh',
               display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              pointerEvents: 'none',
+              justifyContent: 'flex-start',
+              overflow: 'visible',
             }}
           >
             <div
               style={{
                 position: 'relative',
-                width: '100%',
-                height: '100%',
-                maxWidth: 300,
-                pointerEvents: 'auto',
+                width: cardSize.width,
+                height: cardSize.height,
+                touchAction: 'none',
+                overflow: 'visible',
               }}
             >
-              <div
-                style={{
-                  width: cardSize.width,
-                  height: cardSize.height,
-                  margin: '0 auto',
-                  touchAction: 'none',
-                }}
-              >
-                <Stack
-                  cards={cardElements}
-                  cardWidth={cardSize.width}
-                  cardHeight={cardSize.height}
-                  randomRotation
-                  sensitivity={100}
-                  onCardChange={handleCardChange}
-                  onCardTap={handleCardTap}
-                />
-              </div>
+              <Stack
+                cards={cardElements}
+                cardWidth={cardSize.width}
+                cardHeight={cardSize.height}
+                randomRotation
+                sensitivity={100}
+                onCardTap={handleCardTap}
+              />
             </div>
           </div>
         </div>
@@ -202,36 +190,44 @@ function App() {
         <div
           style={{
             flexShrink: 0,
-            paddingTop: 12,
+            marginTop: 32,
             paddingBottom: 'max(env(safe-area-inset-bottom), 24px)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 12,
           }}
         >
-          <button
-            type="button"
-            onClick={handleOpenScratch}
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              font: 'inherit',
-              color: '#000',
-              fontSize: 12,
-              fontWeight: 500,
-              textDecoration: 'underline',
-              cursor: 'pointer',
-            }}
-          >
-            Scratch to reveal →
-          </button>
+          {cards.map((card) => {
+            const solved = solvedCardIds.has(card.id);
+            return (
+              <span
+                key={card.id}
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  backgroundColor: solved ? card.color : 'transparent',
+                  border: solved ? 'none' : '1px solid #D1D1D1',
+                }}
+              />
+            );
+          })}
         </div>
       </div>
 
       <AnimatePresence>
-        {activeScratchCard && (
+        {activeScratchCard && activeScratchCard.id === '1' && (
           <ScratchInteraction
             cardColor={activeScratchCard.color}
             revealText={activeScratchCard.reward}
-            onReveal={() => {}}
+            onReveal={() => handleCardSolved(activeScratchCard.id)}
+            onClose={() => setActiveScratchCard(null)}
+          />
+        )}
+        {activeScratchCard && activeScratchCard.id !== '1' && (
+          <ComingSoonInteraction
+            cardColor={activeScratchCard.color}
             onClose={() => setActiveScratchCard(null)}
           />
         )}
