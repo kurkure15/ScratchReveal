@@ -186,7 +186,7 @@ export default function VibeCodingInteraction({
   const [glitchColor, setGlitchColor] = useState<string | null>(null);
   const [deployLines, setDeployLines] = useState<DeployLine[]>([]);
   const [shaking, setShaking] = useState(false);
-  const [bgColor, setBgColor] = useState('#1E1E1E');
+  const [bgColor, setBgColor] = useState('#2F2E5C');
   const [showPrompt, setShowPrompt] = useState(false);
   const [showGame, setShowGame] = useState(false);
 
@@ -205,7 +205,6 @@ export default function VibeCodingInteraction({
   const typeNextRef = useRef<() => void>(() => {});
   const triggerRevealRef = useRef<() => void>(() => {});
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const lineOffsetRef = useRef(0);
 
   useEffect(() => {
     function sched(fn: () => void, ms: number) {
@@ -325,10 +324,6 @@ export default function VibeCodingInteraction({
         setGlitchColor(null);
         phaseRef.current = 'fade';
         setPhase('fade');
-
-        // Capture line offset from typed code
-        const typed = fullCodeRef.current.slice(0, typedLenRef.current);
-        lineOffsetRef.current = typed.split('\n').length;
 
         // Phase 2: Fade 200ms then deploy
         sched(() => {
@@ -476,7 +471,7 @@ export default function VibeCodingInteraction({
         if (step.effectOnEnd === 'shake') {
           setShaking(true);
           setBgColor('#1a2e1a');
-          sched(() => setBgColor('#1E1E1E'), 150);
+          sched(() => setBgColor('#2F2E5C'), 150);
           sched(() => setShaking(false), 300);
         }
 
@@ -541,10 +536,6 @@ export default function VibeCodingInteraction({
   const codeLines = displayedCode.split('\n');
   const showCodeCursor = phase === 'typing';
   const isDeploy = phase === 'deploy';
-
-  // Which lines and offset to render
-  const renderLines = isDeploy ? deployLines : codeLines;
-  const numberOffset = isDeploy ? lineOffsetRef.current : 0;
 
   return (
     <motion.div
@@ -625,34 +616,8 @@ export default function VibeCodingInteraction({
             }}
             onClick={handleTap}
           >
-            {/* Line numbers */}
-            <div
-              style={{
-                width: 50,
-                flexShrink: 0,
-                borderRight: '1px solid #2D2D2D',
-                userSelect: 'none',
-              }}
-            >
-              {renderLines.map((_, i) => (
-                <div
-                  key={i}
-                  style={{
-                    height: 22,
-                    lineHeight: '22px',
-                    textAlign: 'right',
-                    paddingRight: 12,
-                    color: glitchColor || '#858585',
-                    fontSize: 13,
-                  }}
-                >
-                  {numberOffset + i + 1}
-                </div>
-              ))}
-            </div>
-
             {/* Code / deploy content */}
-            <div style={{ flex: 1, paddingLeft: 16, minWidth: 0 }}>
+            <div style={{ flex: 1, padding: '0 16px', minWidth: 0 }}>
               {isDeploy
                 ? <>
                     {deployLines.map((dl, i) => (

@@ -25,6 +25,7 @@ const SPAWN_INTERVAL_MIN = 400; // ms
 const PARTICLE_COUNT = 8;
 const PARTICLE_LIFE = 30; // frames
 const FONT = "'SF Mono', 'Fira Code', Consolas, monospace";
+const GAME_CHROME_COLOR = '#000000';
 
 const BUG_TEXTS = [
   'NaN',
@@ -162,6 +163,58 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
 
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+
+  // Keep browser chrome/background black while game mode is active.
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+
+    const previousHtmlBg = html.style.backgroundColor;
+    const previousBodyBg = body.style.backgroundColor;
+    html.style.backgroundColor = GAME_CHROME_COLOR;
+    body.style.backgroundColor = GAME_CHROME_COLOR;
+
+    type MetaState = {
+      element: HTMLMetaElement;
+      existed: boolean;
+      previousContent: string | null;
+    };
+
+    const upsertMeta = (name: string, content: string): MetaState => {
+      let element = document.querySelector(`meta[name="${name}"]`) as HTMLMetaElement | null;
+      const existed = !!element;
+      if (!element) {
+        element = document.createElement('meta');
+        element.setAttribute('name', name);
+        document.head.appendChild(element);
+      }
+      const previousContent = element.getAttribute('content');
+      element.setAttribute('content', content);
+      return { element, existed, previousContent };
+    };
+
+    const restoreMeta = ({ element, existed, previousContent }: MetaState) => {
+      if (!existed) {
+        element.remove();
+        return;
+      }
+      if (previousContent === null) {
+        element.removeAttribute('content');
+      } else {
+        element.setAttribute('content', previousContent);
+      }
+    };
+
+    const themeMetaState = upsertMeta('theme-color', GAME_CHROME_COLOR);
+    const appleStatusMetaState = upsertMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');
+
+    return () => {
+      html.style.backgroundColor = previousHtmlBg;
+      body.style.backgroundColor = previousBodyBg;
+      restoreMeta(themeMetaState);
+      restoreMeta(appleStatusMetaState);
+    };
+  }, []);
 
   // ── Init game state ──────────────────────────────────────────────────
 

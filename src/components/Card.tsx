@@ -1,10 +1,344 @@
 import type { CardData } from '../data/cards';
+import rocketIcon from '../assets/rocket.svg';
+import vibeCodeBg from '../assets/Vibe Code.svg';
 
 interface CardProps {
   card: CardData;
 }
 
+/** Vibe Coding card: pixel-accurate match to Figma "concepts" frame — same copy, spacing, colors, icon, button. */
+const isVibeCodingCard = (card: CardData) => card.id === '2';
+const isDoomscrollingCard = (card: CardData) => card.id === '3';
+
+const VIBE_TEXT_COLOR = '#E55342';
+const VIBE_ACCENT = '#A09DFF';
+const VIBE_BG = '#2F2E5C';
+const CLEAN_BG = '#F6EBD9';
+const CLEAN_ACCENT = '#AF9771';
+
+const CLEAN_EVERYTHING_LETTERS: { char: string; left: string; top: number; color: string }[] = [
+  { char: 'E', left: 'calc(50% - 132.3px)', top: 27.69, color: CLEAN_ACCENT },
+  { char: 'V', left: 'calc(50% - 83.81px)', top: 57.69, color: CLEAN_ACCENT },
+  { char: 'E', left: 'calc(50% - 32.32px)', top: 27.69, color: CLEAN_ACCENT },
+  { char: 'R', left: 'calc(50% + 19.91px)', top: 51.34, color: CLEAN_ACCENT },
+  { char: 'Y', left: 'calc(50% + 77.59px)', top: 27.69, color: CLEAN_ACCENT },
+  { char: 'T', left: 'calc(50% - 51.81px)', top: 124.83, color: CLEAN_ACCENT },
+  { char: 'H', left: 'calc(50% - 10.82px)', top: 139.83, color: CLEAN_ACCENT },
+  { char: 'I', left: 'calc(50% + 32.17px)', top: 124.83, color: CLEAN_ACCENT },
+  { char: 'N', left: 'calc(50% + 62.41px)', top: 139.83, color: CLEAN_ACCENT },
+  { char: 'G', left: 'calc(50% + 104.41px)', top: 154.83, color: CLEAN_ACCENT },
+  { char: 'M', left: 'calc(50% - 121.08px)', top: 206.97, color: '#000000' },
+  { char: 'E', left: 'calc(50% - 73.49px)', top: 233.99, color: '#000000' },
+  { char: 'S', left: 'calc(50% - 35.58px)', top: 214.83, color: '#000000' },
+  { char: 'S', left: 'calc(50% + 6.77px)', top: 236.97, color: '#000000' },
+  { char: 'Y', left: 'calc(50% + 49.12px)', top: 221.97, color: '#000000' },
+];
+
+const CLEAN_DASH_BOXES = [
+  { left: 21.17, top: 210.23 },
+  { left: 101.51, top: 218.09 },
+  { left: 187.87, top: 225.23 },
+];
+
+function HouseholdSuppliesIcon() {
+  return (
+    <svg width={24} height={24} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 3h7v2.1l-1.9 1.1V8l2.3 1.9c.5.4.8 1 .8 1.7V19a2 2 0 0 1-2 2H8.8a2 2 0 0 1-2-2v-7.4c0-.7.3-1.3.8-1.7L10 8V6.2L8 5.1V3Z"
+        fill="#000000"
+      />
+      <path d="M13.8 5.1H18a1 1 0 0 1 0 2h-2.3l-1.9-2Z" fill="#000000" />
+      <circle cx="18.3" cy="8.8" r="1" fill="#000000" />
+    </svg>
+  );
+}
+
+function CleanEverythingCard() {
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        borderRadius: 24,
+        backgroundColor: CLEAN_BG,
+        position: 'relative',
+        overflow: 'hidden',
+        userSelect: 'none',
+        borderTop: `3px solid ${CLEAN_ACCENT}`,
+      }}
+    >
+      {CLEAN_EVERYTHING_LETTERS.map((letter, index) => (
+        <p
+          key={`${letter.char}-${index}`}
+          style={{
+            position: 'absolute',
+            left: letter.left,
+            top: letter.top,
+            fontFamily: "'Inter', 'Manrope', sans-serif",
+            fontWeight: 900,
+            fontSize: 40,
+            lineHeight: 1.5,
+            color: letter.color,
+            margin: 0,
+          }}
+        >
+          {letter.char}
+        </p>
+      ))}
+
+      {CLEAN_DASH_BOXES.map((box, index) => (
+        <div
+          key={index}
+          style={{
+            position: 'absolute',
+            left: box.left,
+            top: box.top,
+            width: 53.503,
+            height: 53.491,
+            border: '1px dashed rgba(0, 0, 0, 0.5)',
+            borderRadius: 8,
+          }}
+        />
+      ))}
+
+      <div
+        style={{
+          position: 'absolute',
+          left: 156,
+          top: 334.11,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 8,
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontFamily: "'Inter', 'Manrope', sans-serif",
+            fontWeight: 700,
+            fontSize: 16,
+            lineHeight: 1.5,
+            color: '#000000',
+          }}
+        >
+          CLEAN NOW
+        </p>
+        <div style={{ width: 24, height: 24 }}>
+          <HouseholdSuppliesIcon />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VibeCodingCard() {
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        borderRadius: 24,
+        backgroundColor: VIBE_BG,
+        position: 'relative',
+        overflow: 'hidden',
+        userSelect: 'none',
+        backgroundImage: `url("${vibeCodeBg}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        borderTop: `3px solid ${VIBE_ACCENT}`,
+      }}
+    >
+      <p
+        style={{
+          position: 'absolute',
+          left: 'calc(50% - 89px)',
+          top: 44,
+          fontFamily: "'Inter', 'Manrope', sans-serif",
+          fontWeight: 700,
+          fontSize: 24,
+          lineHeight: 1.5,
+          whiteSpace: 'nowrap',
+          color: VIBE_TEXT_COLOR,
+        }}
+      >
+        There might be
+      </p>
+
+      <p
+        style={{
+          position: 'absolute',
+          left: 'calc(50% - 69.11px)',
+          top: 89.81,
+          fontFamily: "'Inter', 'Manrope', sans-serif",
+          fontWeight: 900,
+          fontSize: 40,
+          lineHeight: 1.5,
+          color: VIBE_TEXT_COLOR,
+        }}
+      >
+        b
+      </p>
+      <p
+        style={{
+          position: 'absolute',
+          left: 'calc(50% - 28.12px)',
+          top: 104.81,
+          fontFamily: "'Inter', 'Manrope', sans-serif",
+          fontWeight: 900,
+          fontSize: 40,
+          lineHeight: 1.5,
+          color: VIBE_TEXT_COLOR,
+        }}
+      >
+        u
+      </p>
+      <p
+        style={{
+          position: 'absolute',
+          left: 'calc(50% + 4.87px)',
+          top: 80,
+          fontFamily: "'Inter', 'Manrope', sans-serif",
+          fontWeight: 900,
+          fontSize: 40,
+          lineHeight: 1.5,
+          color: VIBE_TEXT_COLOR,
+        }}
+      >
+        g
+      </p>
+      <p
+        style={{
+          position: 'absolute',
+          left: 'calc(50% + 45.11px)',
+          top: 104.81,
+          fontFamily: "'Inter', 'Manrope', sans-serif",
+          fontWeight: 900,
+          fontSize: 40,
+          lineHeight: 1.5,
+          color: VIBE_TEXT_COLOR,
+        }}
+      >
+        s
+      </p>
+
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: 238,
+          width: 40,
+          height: 40,
+          transform: 'translateX(-50%)',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            left: 10.72,
+            top: 1.5,
+            width: 2.09,
+            height: 6.87,
+            borderRadius: 8,
+            backgroundColor: VIBE_ACCENT,
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            left: 18.95,
+            top: 4.93,
+            width: 2.09,
+            height: 6.87,
+            borderRadius: 8,
+            backgroundColor: VIBE_ACCENT,
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            left: 27.19,
+            top: 1.5,
+            width: 2.09,
+            height: 6.87,
+            borderRadius: 8,
+            backgroundColor: VIBE_ACCENT,
+          }}
+        />
+        <img
+          src={rocketIcon}
+          alt=""
+          draggable={false}
+          style={{
+            position: 'absolute',
+            left: 8,
+            top: 15.06,
+            width: 24,
+            height: 24,
+            display: 'block',
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          position: 'absolute',
+          left: 110,
+          top: 293,
+          width: 80,
+          height: 40,
+          border: `1px solid ${VIBE_ACCENT}`,
+          borderRadius: 16,
+        }}
+      >
+        <span
+          style={{
+            position: 'absolute',
+            left: 26.93,
+            top: 5,
+            fontFamily: "'Inter', 'Manrope', sans-serif",
+            fontWeight: 700,
+            fontSize: 20,
+            lineHeight: 1.5,
+            color: VIBE_TEXT_COLOR,
+            letterSpacing: '0.02em',
+          }}
+        >
+          &gt;
+        </span>
+        <span
+          style={{
+            position: 'absolute',
+            left: 43.07,
+            top: 5,
+            fontFamily: "'Inter', 'Manrope', sans-serif",
+            fontWeight: 700,
+            fontSize: 20,
+            lineHeight: 1.5,
+            color: VIBE_TEXT_COLOR,
+          }}
+        >
+          _
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function Card({ card }: CardProps) {
+  const isVibe = isVibeCodingCard(card);
+  const isDoomscrolling = isDoomscrollingCard(card);
+
+  if (isVibe) {
+    return <VibeCodingCard />;
+  }
+  if (isDoomscrolling) {
+    return <CleanEverythingCard />;
+  }
+
   return (
     <div
       style={{

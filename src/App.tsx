@@ -52,7 +52,24 @@ function App() {
 
   // Only show a subset in the fanned stack (exclude visually white/neutral cards).
   const stackCards = useMemo(
-    () => cards.filter((card) => card.includeInStack !== false),
+    () => {
+      const visibleCards = cards.filter((card) => card.includeInStack !== false);
+
+      const extractCard = (id: string) => {
+        const index = visibleCards.findIndex((card) => card.id === id);
+        if (index < 0) return null;
+        const [card] = visibleCards.splice(index, 1);
+        return card;
+      };
+
+      const doomscrollingCard = extractCard('3');
+      const vibeCard = extractCard('2');
+
+      if (doomscrollingCard) visibleCards.push(doomscrollingCard);
+      if (vibeCard) visibleCards.push(vibeCard);
+
+      return visibleCards;
+    },
     []
   );
 
@@ -218,6 +235,7 @@ function App() {
         >
           {stackCards.map((card) => {
             const solved = solvedCardIds.has(card.id);
+            const usesCardColorOutline = card.id === '2' || card.id === '3';
             return (
               <span
                 key={card.id}
@@ -226,7 +244,11 @@ function App() {
                   height: 8,
                   borderRadius: '50%',
                   backgroundColor: solved ? card.color : 'transparent',
-                  border: solved ? 'none' : '1px solid #EFEFEF',
+                  border: solved
+                    ? usesCardColorOutline
+                      ? `1px solid ${card.color}`
+                      : 'none'
+                    : `1px solid ${usesCardColorOutline ? card.color : '#EFEFEF'}`,
                 }}
               />
             );
