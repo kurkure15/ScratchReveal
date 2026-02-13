@@ -1,9 +1,11 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import Stack from './components/Stack';
 import Card from './components/Card';
 import ScratchInteraction from './components/interactions/ScratchInteraction';
 import ComingSoonInteraction from './components/interactions/ComingSoonInteraction';
+import TouchGrassInteraction from './components/interactions/TouchGrassInteraction';
+import VibeCodingInteraction from './components/interactions/VibeCodingInteraction';
 import { cards, type CardData } from './data/cards';
 
 const SOLVED_STORAGE_KEY = 'solvedCards';
@@ -61,12 +63,18 @@ function App() {
     }
   }, [solvedCardIds]);
 
+  const topCardIndexRef = useRef(stackCards.length - 1);
+
+  const handleCardChange = useCallback((topIndex: number) => {
+    topCardIndexRef.current = topIndex;
+  }, []);
+
   const openScratchForCard = useCallback((card: CardData) => {
     setActiveScratchCard(card);
   }, []);
 
-  const handleCardTap = useCallback((stackIndex: number) => {
-    const tappedCard = stackCards[stackIndex];
+  const handleCardTap = useCallback(() => {
+    const tappedCard = stackCards[topCardIndexRef.current];
     if (!tappedCard) return;
     openScratchForCard(tappedCard);
   }, [openScratchForCard, stackCards]);
@@ -190,6 +198,7 @@ function App() {
                 randomRotation
                 sensitivity={100}
                 onCardTap={handleCardTap}
+                onCardChange={handleCardChange}
               />
             </div>
           </div>
@@ -227,14 +236,32 @@ function App() {
       <AnimatePresence>
         {activeScratchCard && activeScratchCard.id === '1' && (
           <ScratchInteraction
+            key="scratch"
             cardColor={activeScratchCard.color}
             revealText={activeScratchCard.reward}
             onReveal={() => handleCardSolved(activeScratchCard.id)}
             onClose={() => setActiveScratchCard(null)}
           />
         )}
-        {activeScratchCard && activeScratchCard.id !== '1' && (
+        {activeScratchCard && activeScratchCard.id === '2' && (
+          <VibeCodingInteraction
+            key="vibecoding"
+            cardColor={activeScratchCard.color}
+            onReveal={() => handleCardSolved(activeScratchCard.id)}
+            onClose={() => setActiveScratchCard(null)}
+          />
+        )}
+        {activeScratchCard && activeScratchCard.id === '3' && (
+          <TouchGrassInteraction
+            key="touchgrass"
+            cardColor={activeScratchCard.color}
+            onReveal={() => handleCardSolved(activeScratchCard.id)}
+            onClose={() => setActiveScratchCard(null)}
+          />
+        )}
+        {activeScratchCard && !['1', '2', '3'].includes(activeScratchCard.id) && (
           <ComingSoonInteraction
+            key="comingsoon"
             cardColor={activeScratchCard.color}
             onClose={() => setActiveScratchCard(null)}
           />

@@ -1,86 +1,10 @@
 import type { CardData } from '../data/cards';
-import scratchImage from '../assets/Scratch.png';
-
-// SVG patterns — each card gets a unique geometric pattern
-const patterns: Record<string, React.ReactNode> = {
-  "1": ( // Diagonal lines
-    <g>
-      {Array.from({ length: 20 }, (_, i) => (
-        <line key={i} x1={i * 30 - 100} y1={0} x2={i * 30 + 260} y2={360} stroke="white" strokeWidth="2" />
-      ))}
-    </g>
-  ),
-  "2": ( // Circles grid
-    <g>
-      {Array.from({ length: 6 }, (_, row) =>
-        Array.from({ length: 5 }, (_, col) => (
-          <circle key={`${row}-${col}`} cx={col * 60 + 20} cy={row * 60 + 80} r="18" fill="none" stroke="white" strokeWidth="1.5" />
-        ))
-      )}
-    </g>
-  ),
-  "3": ( // Chevrons
-    <g>
-      {Array.from({ length: 8 }, (_, i) => (
-        <polyline key={i} points={`20,${i * 45 + 40} 140,${i * 45 + 10} 260,${i * 45 + 40}`} fill="none" stroke="white" strokeWidth="2" />
-      ))}
-    </g>
-  ),
-  "4": ( // Cross-hatch
-    <g>
-      {Array.from({ length: 14 }, (_, i) => (
-        <g key={i}>
-          <line x1={i * 25} y1={0} x2={i * 25} y2={360} stroke="white" strokeWidth="1" />
-          <line x1={0} y1={i * 30} x2={280} y2={i * 30} stroke="white" strokeWidth="1" />
-        </g>
-      ))}
-    </g>
-  ),
-  "5": ( // Concentric rectangles
-    <g>
-      {Array.from({ length: 6 }, (_, i) => (
-        <rect key={i} x={20 + i * 20} y={100 + i * 20} width={240 - i * 40} height={200 - i * 40} fill="none" stroke="white" strokeWidth="1.5" rx="4" />
-      ))}
-    </g>
-  ),
-  "6": ( // Dots grid
-    <g>
-      {Array.from({ length: 10 }, (_, row) =>
-        Array.from({ length: 8 }, (_, col) => (
-          <circle key={`${row}-${col}`} cx={col * 35 + 15} cy={row * 36 + 20} r="4" fill="white" />
-        ))
-      )}
-    </g>
-  ),
-  "7": ( // Triangles
-    <g>
-      {Array.from({ length: 6 }, (_, row) =>
-        Array.from({ length: 5 }, (_, col) => {
-          const x = col * 60 + (row % 2 === 0 ? 10 : 40);
-          const y = row * 55 + 60;
-          return (
-            <polygon key={`${row}-${col}`} points={`${x},${y - 20} ${x + 25},${y + 15} ${x - 25},${y + 15}`} fill="none" stroke="white" strokeWidth="1.5" />
-          );
-        })
-      )}
-    </g>
-  ),
-  "8": ( // Horizontal waves
-    <g>
-      {Array.from({ length: 10 }, (_, i) => (
-        <path key={i} d={`M0,${i * 36 + 20} Q70,${i * 36} 140,${i * 36 + 20} T280,${i * 36 + 20}`} fill="none" stroke="white" strokeWidth="1.5" />
-      ))}
-    </g>
-  ),
-};
 
 interface CardProps {
   card: CardData;
 }
 
 export default function Card({ card }: CardProps) {
-  const cardImage = card.id === '1' ? scratchImage : card.image;
-
   return (
     <div
       style={{
@@ -92,83 +16,97 @@ export default function Card({ card }: CardProps) {
         overflow: 'hidden',
         userSelect: 'none',
         boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
+      {/* Top 55% — Media area */}
       <div
         style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 2,
-          padding: '18px 20px',
-          color: 'white',
-          fontSize: 12,
-          fontWeight: 600,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          textShadow: '0 1px 6px rgba(0,0,0,0.24)',
-          pointerEvents: 'none',
-          userSelect: 'none',
+          flex: '0 0 55%',
+          overflow: 'hidden',
+          position: 'relative',
         }}
       >
-        {card.label}
-      </div>
-
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-        }}
-      >
-        {cardImage ? (
-          <>
-            <img
-              src={cardImage}
-              alt=""
-              draggable={false}
-              onDragStart={(event) => event.preventDefault()}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                objectPosition: 'center',
-                display: 'block',
-                pointerEvents: 'none',
-                userSelect: 'none',
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                background: 'linear-gradient(to bottom, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.01) 35%, rgba(0,0,0,0) 100%)',
-                pointerEvents: 'none',
-              }}
-            />
-          </>
-        ) : (
-          <svg
-            width="100%"
-            height="100%"
-            viewBox="0 0 280 360"
-            preserveAspectRatio="xMidYMid slice"
+        {card.video ? (
+          <video
+            src={card.video}
+            autoPlay
+            muted
+            loop
+            playsInline
             style={{
-              position: 'absolute',
-              inset: 0,
-              opacity: 0.22,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block',
               pointerEvents: 'none',
             }}
+          />
+        ) : card.image ? (
+          <img
+            src={card.image}
+            alt=""
+            draggable={false}
+            onDragStart={(event) => event.preventDefault()}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center',
+              display: 'block',
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              backgroundColor: card.color,
+            }}
+          />
+        )}
+      </div>
+
+      {/* Bottom 45% — Text area */}
+      <div
+        style={{
+          flex: '0 0 45%',
+          backgroundColor: card.color,
+          padding: '16px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-end',
+        }}
+      >
+        <div
+          style={{
+            color: '#FFFFFF',
+            fontSize: 24,
+            fontWeight: 700,
+            lineHeight: 1.2,
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            textAlign: 'left',
+          }}
+        >
+          {card.headline}
+        </div>
+        {card.subtext && (
+          <div
+            style={{
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontSize: 13,
+              fontWeight: 400,
+              lineHeight: 1.4,
+              marginTop: 8,
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              textAlign: 'left',
+            }}
           >
-            <defs>
-              <clipPath id={`clip-${card.id}`}>
-                <rect x="0" y="0" width="280" height="360" />
-              </clipPath>
-            </defs>
-            <g clipPath={`url(#clip-${card.id})`}>
-              {patterns[card.id]}
-            </g>
-          </svg>
+            {card.subtext}
+          </div>
         )}
       </div>
     </div>
