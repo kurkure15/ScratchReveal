@@ -56,7 +56,7 @@ const TAP_SNIPPETS = [
   "// mass mass ship ship ship\nconsole.log('we are so back');",
 ];
 
-const TAPS_TO_REVEAL = 6;
+const TAPS_TO_REVEAL = 3;
 
 const KEYWORDS = new Set([
   'const', 'let', 'var', 'if', 'else', 'return', 'try', 'catch',
@@ -208,8 +208,11 @@ export default function VibeCodingInteraction({
   const [deployLines, setDeployLines] = useState<DeployLine[]>([]);
   const [shaking, setShaking] = useState(false);
   const [bgColor, setBgColor] = useState('#2F2E5C');
-  const [showPrompt, setShowPrompt] = useState(false);
   const [showGame, setShowGame] = useState(false);
+  const [showTapHint, setShowTapHint] = useState(false);
+  const [tapHintFading, setTapHintFading] = useState(false);
+  const [showRedFlash, setShowRedFlash] = useState(false);
+  const [showDefendButton, setShowDefendButton] = useState(false);
 
   const fullCodeRef = useRef(INITIAL_CODE);
   const typedLenRef = useRef(0);
@@ -222,6 +225,7 @@ export default function VibeCodingInteraction({
   const allIntervalsRef = useRef<number[]>([]);
   const onRevealRef = useRef(onReveal);
   onRevealRef.current = onReveal;
+  const tapHintDismissedRef = useRef(false);
 
   const typeNextRef = useRef<() => void>(() => {});
   const triggerRevealRef = useRef<() => void>(() => {});
@@ -289,12 +293,76 @@ export default function VibeCodingInteraction({
       } catch { /* noop */ }
     }
 
+    // ── Warning sequence (after deploy) ────────────────────────────
+
+    function playWarningSound() {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      try {
+        const osc = ctx.createOscillator();
+        const vol = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 200;
+        vol.gain.setValueAtTime(0.08, ctx.currentTime);
+        vol.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+        osc.connect(vol);
+        vol.connect(ctx.destination);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.21);
+      } catch { /* noop */ }
+    }
+
+    function typeWarningLine(text: string, color: string) {
+      setDeployLines(prev => [...prev, { text: '', color }]);
+      let charIdx = 0;
+      function typeChar() {
+        charIdx++;
+        setDeployLines(prev => {
+          const next = [...prev];
+          const last = next.length - 1;
+          next[last] = { ...next[last], text: text.slice(0, charIdx) };
+          return next;
+        });
+        autoScroll();
+        if (charIdx < text.length) {
+          sched(typeChar, 25);
+        }
+      }
+      sched(typeChar, 25);
+    }
+
+    function runWarningSequence() {
+      setShowRedFlash(true);
+      playWarningSound();
+      sched(() => setShowRedFlash(false), 150);
+
+      sched(() => {
+        typeWarningLine('> WARNING: bugs detected in production', '#FF5555');
+      }, 200);
+
+      sched(() => {
+        typeWarningLine('> threat level: mass mass mass mass critical', '#FF5555');
+      }, 1500);
+
+      sched(() => {
+        setShowDefendButton(true);
+        try { navigator.vibrate([20, 10, 20]); } catch { /* noop */ }
+      }, 2500);
+    }
+
     // ── Code auto-type (unchanged) ──────────────────────────────────
 
     function typeNext() {
       const full = fullCodeRef.current;
       if (typedLenRef.current >= full.length) {
         typingActiveRef.current = false;
+        if (tapCountRef.current === 0 && !tapHintDismissedRef.current) {
+          sched(() => {
+            if (!tapHintDismissedRef.current) {
+              setShowTapHint(true);
+            }
+          }, 2000);
+        }
         return;
       }
 
@@ -507,7 +575,7 @@ export default function VibeCodingInteraction({
             startVelocity: 30,
           });
           onRevealRef.current?.();
-          sched(() => setShowPrompt(true), 1000);
+          sched(() => runWarningSequence(), 1000);
         }
 
         if (step.pause > 0) sched(nextStep, step.pause);
@@ -531,6 +599,13 @@ export default function VibeCodingInteraction({
     // Init AudioContext on first user gesture
     if (!audioCtxRef.current) {
       try { audioCtxRef.current = new AudioContext(); } catch { /* noop */ }
+    }
+
+    // Dismiss tap hint on first tap
+    if (!tapHintDismissedRef.current) {
+      tapHintDismissedRef.current = true;
+      setTapHintFading(true);
+      setTimeout(() => setShowTapHint(false), 200);
     }
 
     if (phaseRef.current !== 'typing') return;
@@ -654,7 +729,7 @@ export default function VibeCodingInteraction({
                         }}
                       >
                         {dl.text}
-                        {i === deployLines.length - 1 && !showPrompt && (
+                        {i === deployLines.length - 1 && !showDefendButton && (
                           <span
                             style={{
                               display: 'inline-block',
@@ -669,63 +744,82 @@ export default function VibeCodingInteraction({
                         )}
                       </div>
                     ))}
-                    {showPrompt && (
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void enterFullscreenIfAvailable();
-                          setShowGame(true);
-                        }}
-                        style={{
-                          height: 30,
-                          lineHeight: '30px',
-                          fontSize: 14,
-                          whiteSpace: 'pre',
-                          color: '#C586C0',
-                          cursor: 'pointer',
-                          marginTop: 8,
-                        }}
-                      >
-                        {'> '}
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            width: 8,
-                            height: 16,
-                            backgroundColor: '#C586C0',
-                            animation: 'cursor-blink 1s step-end infinite',
-                            verticalAlign: 'text-bottom',
+                    {showDefendButton && (
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        marginTop: 24,
+                      }}>
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void enterFullscreenIfAvailable();
+                            setShowGame(true);
                           }}
-                        />
+                          style={{
+                            color: '#28C840',
+                            fontSize: 18,
+                            fontFamily: FONT,
+                            fontWeight: 600,
+                            border: '2px solid #28C840',
+                            borderRadius: 8,
+                            padding: '12px 32px',
+                            cursor: 'pointer',
+                            animation: 'defend-glow 1s ease-in-out infinite',
+                          }}
+                        >
+                          [ DEFEND ]
+                        </div>
                       </div>
                     )}
                   </>
-                : codeLines.map((line, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        height: 22,
-                        lineHeight: '22px',
-                        fontSize: 14,
-                        whiteSpace: 'pre',
-                      }}
-                    >
-                      {highlightLine(line, glitchColor)}
-                      {i === codeLines.length - 1 && showCodeCursor && (
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            width: 2,
-                            height: 18,
-                            backgroundColor: '#AEAFAD',
-                            animation: 'cursor-blink 1s step-end infinite',
-                            verticalAlign: 'text-bottom',
-                            marginLeft: 1,
-                          }}
-                        />
-                      )}
-                    </div>
-                  ))}
+                : <>
+                    {codeLines.map((line, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          height: 22,
+                          lineHeight: '22px',
+                          fontSize: 14,
+                          whiteSpace: 'pre',
+                        }}
+                      >
+                        {highlightLine(line, glitchColor)}
+                        {i === codeLines.length - 1 && showCodeCursor && (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              width: 2,
+                              height: 18,
+                              backgroundColor: '#AEAFAD',
+                              animation: 'cursor-blink 1s step-end infinite',
+                              verticalAlign: 'text-bottom',
+                              marginLeft: 1,
+                            }}
+                          />
+                        )}
+                      </div>
+                    ))}
+                    {showTapHint && (
+                      <div
+                        style={{
+                          textAlign: 'center',
+                          marginTop: 24,
+                          fontSize: 12,
+                          fontWeight: 400,
+                          color: '#858585',
+                          letterSpacing: 1,
+                          fontFamily: FONT,
+                          animation: tapHintFading
+                            ? 'tap-hint-fadeout 200ms ease forwards'
+                            : 'tap-hint-fadein 800ms ease forwards, tap-hint-pulse 2s 800ms ease-in-out infinite',
+                          opacity: 0,
+                        }}
+                      >
+                        tap anywhere
+                      </div>
+                    )}
+                  </>}
             </div>
           </div>
         </div>
@@ -755,6 +849,17 @@ export default function VibeCodingInteraction({
           ×
         </button>
       </div>
+
+      {/* Red flash overlay */}
+      {showRedFlash && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: 'rgba(255,0,0,0.15)',
+          pointerEvents: 'none',
+          zIndex: 1010,
+        }} />
+      )}
 
       {/* Bug Squash Game overlay */}
       <AnimatePresence>
@@ -802,6 +907,22 @@ export default function VibeCodingInteraction({
         }
         .vibe-close-btn:hover {
           color: #FFFFFF !important;
+        }
+        @keyframes tap-hint-fadein {
+          from { opacity: 0; }
+          to { opacity: 0.6; }
+        }
+        @keyframes tap-hint-pulse {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 0.4; }
+        }
+        @keyframes tap-hint-fadeout {
+          from { opacity: 0.6; }
+          to { opacity: 0; }
+        }
+        @keyframes defend-glow {
+          0%, 100% { box-shadow: 0 0 10px rgba(40,200,64,0.3); }
+          50% { box-shadow: 0 0 25px rgba(40,200,64,0.6); }
         }
       `}</style>
     </motion.div>

@@ -160,6 +160,13 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
   const [phase, setPhase] = useState<'playing' | 'results'>('playing');
   const [resultLines, setResultLines] = useState<string[]>([]);
   const [showCloseBtn, setShowCloseBtn] = useState(false);
+  const [countdownValue, setCountdownValue] = useState<number | string | null>(3);
+  const [showShootHint, setShowShootHint] = useState(false);
+
+  const gameStartedRef = useRef(false);
+  const tutorialActiveRef = useRef(false);
+  const tutorialStartTimeRef = useRef(0);
+  const tutorialBugSpawnedRef = useRef(false);
 
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
@@ -280,20 +287,71 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
     const game = initGame(w, h);
     gameRef.current = game;
 
-    // Timer
-    timerRef.current = window.setInterval(() => {
-      if (!gameRef.current || gameRef.current.gameOver) return;
-      gameRef.current.timeLeft--;
-      if (gameRef.current.timeLeft <= 0) {
-        gameRef.current.gameOver = true;
-      }
-    }, 1000);
+    // ── Countdown ────────────────────────────────────────────────────
+
+    function playCountdownBlip(freq: number) {
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.06, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.11);
+      } catch { /* noop */ }
+    }
+
+    const countdownTimers: number[] = [];
+
+    // "3" — immediate
+    playCountdownBlip(440);
+    try { navigator.vibrate(10); } catch { /* noop */ }
+
+    countdownTimers.push(window.setTimeout(() => {
+      setCountdownValue(2);
+      playCountdownBlip(550);
+      try { navigator.vibrate(10); } catch { /* noop */ }
+    }, 1000));
+
+    countdownTimers.push(window.setTimeout(() => {
+      setCountdownValue(1);
+      playCountdownBlip(660);
+      try { navigator.vibrate(10); } catch { /* noop */ }
+    }, 2000));
+
+    countdownTimers.push(window.setTimeout(() => {
+      setCountdownValue('GO');
+      playCountdownBlip(880);
+      try { navigator.vibrate(10); } catch { /* noop */ }
+    }, 3000));
+
+    countdownTimers.push(window.setTimeout(() => {
+      setCountdownValue(null);
+      gameStartedRef.current = true;
+      tutorialActiveRef.current = true;
+      tutorialStartTimeRef.current = performance.now();
+      setShowShootHint(true);
+
+      // Start the game timer
+      timerRef.current = window.setInterval(() => {
+        if (!gameRef.current || gameRef.current.gameOver) return;
+        gameRef.current.timeLeft--;
+        if (gameRef.current.timeLeft <= 0) {
+          gameRef.current.gameOver = true;
+        }
+      }, 1000);
+    }, 3800));
 
     // ── Input ──────────────────────────────────────────────────────────
 
     function handleInput(clientX: number) {
       const g = gameRef.current;
-      if (!g || g.gameOver) return;
+      if (!g || g.gameOver || !gameStartedRef.current) return;
 
       // Move ship toward tap X
       g.player.targetX = Math.max(PLAYER_SIZE, Math.min(w - PLAYER_SIZE, clientX));
@@ -368,15 +426,36 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
       const now = performance.now();
 
       // ── Spawn bugs ───────────────────────────────────────────────────
-      if (!g.gameOver) {
-        const elapsed = GAME_DURATION - g.timeLeft;
-        const interval = Math.max(
-          SPAWN_INTERVAL_MIN,
-          SPAWN_INTERVAL_START - elapsed * 30
-        );
-        if (now - g.lastSpawnTime > interval) {
-          g.lastSpawnTime = now;
-          spawnBug(g);
+      if (!g.gameOver && gameStartedRef.current) {
+        if (tutorialActiveRef.current) {
+          // Tutorial: spawn 1 slow bug
+          if (!tutorialBugSpawnedRef.current) {
+            tutorialBugSpawnedRef.current = true;
+            g.bugs.push({
+              x: BUG_WIDTH / 2 + Math.random() * (w - BUG_WIDTH),
+              y: -BUG_HEIGHT,
+              speed: 1,
+              text: BUG_TEXTS[Math.floor(Math.random() * BUG_TEXTS.length)],
+              wobbleOffset: Math.random() * Math.PI * 2,
+              wobbleSpeed: 2 + Math.random() * 3,
+              active: true,
+            });
+          }
+          // End tutorial after 3 seconds
+          if (performance.now() - tutorialStartTimeRef.current > 3000) {
+            tutorialActiveRef.current = false;
+            setShowShootHint(false);
+          }
+        } else {
+          const elapsed = GAME_DURATION - g.timeLeft;
+          const interval = Math.max(
+            SPAWN_INTERVAL_MIN,
+            SPAWN_INTERVAL_START - elapsed * 30
+          );
+          if (now - g.lastSpawnTime > interval) {
+            g.lastSpawnTime = now;
+            spawnBug(g);
+          }
         }
       }
 
@@ -440,6 +519,12 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
 
             if (audioCtxRef.current) playHitSound(audioCtxRef.current);
             try { navigator.vibrate(5); } catch { /* noop */ }
+
+            // End tutorial on first kill
+            if (tutorialActiveRef.current) {
+              tutorialActiveRef.current = false;
+              setShowShootHint(false);
+            }
           }
         }
       }
@@ -662,6 +747,7 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
     return () => {
       cancelAnimationFrame(rafRef.current);
       clearInterval(timerRef.current);
+      countdownTimers.forEach(t => clearTimeout(t));
       canvas.removeEventListener('touchstart', onTouchStart);
       canvas.removeEventListener('touchmove', onTouchMove);
       canvas.removeEventListener('touchend', onTouchEnd);
@@ -697,6 +783,60 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
           }}
         />
       )}
+
+      {/* Countdown overlay */}
+      {countdownValue !== null && (
+        <div
+          key={String(countdownValue)}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            pointerEvents: 'none',
+            zIndex: 10,
+          }}
+        >
+          <span
+            style={{
+              color: '#28C840',
+              fontSize: 64,
+              fontFamily: FONT,
+              fontWeight: 700,
+              animation: 'countdown-anim 800ms ease forwards',
+            }}
+          >
+            {countdownValue}
+          </span>
+        </div>
+      )}
+
+      {/* Tutorial shoot hint */}
+      <AnimatePresence>
+        {showShootHint && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.6 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{
+              position: 'absolute',
+              bottom: 60,
+              left: 0,
+              right: 0,
+              textAlign: 'center',
+              color: '#858585',
+              fontSize: 13,
+              fontFamily: FONT,
+              pointerEvents: 'none',
+              zIndex: 10,
+            }}
+          >
+            tap to shoot
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {phase === 'results' && (
@@ -798,6 +938,10 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
         @keyframes bug-cursor-blink {
           0%, 100% { opacity: 1; }
           50% { opacity: 0; }
+        }
+        @keyframes countdown-anim {
+          from { transform: scale(1.5); opacity: 1; }
+          to { transform: scale(1.0); opacity: 0.5; }
         }
       `}</style>
     </motion.div>
