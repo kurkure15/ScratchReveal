@@ -175,6 +175,27 @@ interface DeployLine {
   fontWeight?: number;
 }
 
+async function enterFullscreenIfAvailable() {
+  const doc = document as Document & { webkitFullscreenElement?: Element | null };
+  const root = document.documentElement as HTMLElement & {
+    webkitRequestFullscreen?: () => Promise<void> | void;
+  };
+
+  if (doc.fullscreenElement || doc.webkitFullscreenElement) return;
+
+  try {
+    if (root.requestFullscreen) {
+      await root.requestFullscreen({ navigationUI: 'hide' });
+      return;
+    }
+    if (root.webkitRequestFullscreen) {
+      root.webkitRequestFullscreen();
+    }
+  } catch {
+    // Browser/user settings may block fullscreen. Game still opens normally.
+  }
+}
+
 // ── Component ─────────────────────────────────────────────────────────
 
 export default function VibeCodingInteraction({
@@ -652,6 +673,7 @@ export default function VibeCodingInteraction({
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
+                          void enterFullscreenIfAvailable();
                           setShowGame(true);
                         }}
                         style={{
@@ -718,8 +740,8 @@ export default function VibeCodingInteraction({
           className="vibe-close-btn"
           style={{
             position: 'absolute',
-            top: 10,
-            right: 12,
+            top: 'max(env(safe-area-inset-top), 10px)',
+            right: 'max(env(safe-area-inset-right), 12px)',
             zIndex: 1020,
             background: 'none',
             border: 'none',

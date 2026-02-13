@@ -21,7 +21,6 @@ export default function ComingSoonInteraction({
       style={{
         position: 'fixed',
         inset: 0,
-        height: '100dvh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -40,8 +39,8 @@ export default function ComingSoonInteraction({
         onClick={onClose}
         style={{
           position: 'fixed',
-          top: 16,
-          right: 16,
+          top: 'max(env(safe-area-inset-top), 16px)',
+          right: 'max(env(safe-area-inset-right), 16px)',
           width: 40,
           height: 40,
           border: 'none',

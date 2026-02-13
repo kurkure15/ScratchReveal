@@ -59,6 +59,29 @@ const SWIPE_THRESHOLD_VELOCITY = 300;
 const SWIPE_THRESHOLD_OFFSET = 80;
 const SNAP_DISTANCE = 80;
 const ITEMS_BEFORE_SORT = 12;
+const NOTE_ACCENT = '#2B34D6';
+const SECOND_COMING_STANZA_ONE_A = `Turning and turning in the widening gyre
+The falcon cannot hear the falconer;`;
+const SECOND_COMING_HIGHLIGHT = `Things fall apart; the centre cannot hold;`;
+const SECOND_COMING_STANZA_ONE_B = `Mere anarchy is loosed upon the world,
+The blood-dimmed tide is loosed, and everywhere
+The ceremony of innocence is drowned;
+The best lack all conviction, while the worst
+Are full of passionate intensity.`;
+const SECOND_COMING_STANZA_TWO = `Surely some revelation is at hand;
+Surely the Second Coming is at hand.
+The Second Coming! Hardly are those words out
+When a vast image out of Spiritus Mundi
+Troubles my sight: somewhere in sands of the desert
+A shape with lion body and the head of a man,
+A gaze blank and pitiless as the sun,
+Is moving its slow thighs, while all about it
+Wind shadows of the indignant desert birds.
+The darkness drops again; but now I know
+That twenty centuries of stony sleep
+Were vexed to nightmare by a rocking cradle,
+And what rough beast, its hour come round at last,
+Slouches towards Bethlehem to be born?`;
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -215,6 +238,22 @@ const DRAG_ITEM_STYLE: React.CSSProperties = {
   WebkitUserDrag: 'none',
 } as React.CSSProperties;
 
+function BloomIcon() {
+  return (
+    <svg width={38} height={56} viewBox="0 0 38 56" fill="none" aria-hidden="true">
+      <path
+        d="M19 44V54M19 44C17 40.5 12 39 9 36.5M19 44C21 40.5 26 39 29 36.5M19 30C12.4 30 7 24.6 7 18C7 11.4 12.4 6 19 6C25.6 6 31 11.4 31 18C31 24.6 25.6 30 19 30Z"
+        stroke={NOTE_ACCENT}
+        strokeWidth={2.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="19" cy="18" r="3" stroke={NOTE_ACCENT} strokeWidth={2.6} />
+      <path d="M11 13C10 14.2 9.5 15.5 9.5 17" stroke={NOTE_ACCENT} strokeWidth={2.6} strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // ── Component ────────────────────────────────────────────────────────────
 
 export default function ReorganizeInteraction({
@@ -226,8 +265,7 @@ export default function ReorganizeInteraction({
   const [gridVisible, setGridVisible] = useState(false);
   const [gridOpacity, setGridOpacity] = useState(1);
   const [itemsOpacity, setItemsOpacity] = useState(1);
-  const [showFinalNotif, setShowFinalNotif] = useState(false);
-  const [showFinalText, setShowFinalText] = useState(false);
+  const [showPoem, setShowPoem] = useState(false);
   const [occupiedCells, setOccupiedCells] = useState<(number | null)[]>([null, null, null, null, null, null]);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -403,17 +441,17 @@ export default function ReorganizeInteraction({
     if (gamePhase === 'sort' && placedCount === 6) {
       // Start reveal sequence
       setGamePhase('reveal');
+      setShowPoem(false);
       const t1 = setTimeout(() => setItemsOpacity(0.5), 0);
       const t2 = setTimeout(() => setGridOpacity(0), 500);
       const t3 = setTimeout(() => setItemsOpacity(0), 800);
       const t4 = setTimeout(() => {
-        setShowFinalNotif(true);
+        setShowPoem(true);
         playRevealChord();
         try { navigator.vibrate([50, 30, 100]); } catch { /* noop */ }
         onRevealRef.current?.();
-      }, 2000);
-      const t5 = setTimeout(() => setShowFinalText(true), 3000);
-      revealTimersRef.current.push(t1, t2, t3, t4, t5);
+      }, 1400);
+      revealTimersRef.current.push(t1, t2, t3, t4);
     }
   }, [gamePhase, placedCount, playRevealChord]);
 
@@ -675,8 +713,6 @@ export default function ReorganizeInteraction({
       style={{
         position: 'fixed',
         inset: 0,
-        width: '100vw',
-        height: '100dvh',
         zIndex: 1000,
         backgroundColor: bg,
         transition: 'background-color 500ms ease',
@@ -685,7 +721,7 @@ export default function ReorganizeInteraction({
         overscrollBehavior: 'none',
         WebkitUserSelect: 'none',
         userSelect: 'none',
-        touchAction: 'none',
+        touchAction: gamePhase === 'reveal' ? 'pan-y' : 'none',
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -698,8 +734,8 @@ export default function ReorganizeInteraction({
         onClick={(e) => { e.stopPropagation(); onClose(); }}
         style={{
           position: 'fixed',
-          top: 16,
-          right: 16,
+          top: 'max(env(safe-area-inset-top), 16px)',
+          right: 'max(env(safe-area-inset-right), 16px)',
           zIndex: 1020,
           width: 40,
           height: 40,
@@ -826,59 +862,112 @@ export default function ReorganizeInteraction({
         );
       })}
 
-      {/* Final notification */}
+      {/* Closing note reveal */}
       <AnimatePresence>
-        {showFinalNotif && (
+        {showPoem && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
             style={{
               position: 'absolute',
               inset: 0,
               display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               justifyContent: 'center',
-              gap: 16,
               zIndex: 30,
-              padding: 32,
-              pointerEvents: 'none',
+              paddingTop: 'max(env(safe-area-inset-top), 44px)',
+              paddingRight: 'max(env(safe-area-inset-right), 20px)',
+              paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
+              paddingLeft: 'max(env(safe-area-inset-left), 20px)',
+              overflowY: 'auto',
+              touchAction: 'pan-y',
+              WebkitOverflowScrolling: 'touch',
             }}
           >
-            <div style={{
-              background: 'white',
-              padding: '16px 20px',
-              borderRadius: 16,
-              boxShadow: '0 8px 30px rgba(0,0,0,0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              maxWidth: 'calc(100vw - 64px)',
-            }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#28C840', flexShrink: 0 }} />
-              <span style={{ fontSize: 15, color: '#1A1A1A', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                new message: hey, you free?
-              </span>
-            </div>
-            {showFinalText && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.6 }}
+            <div
+              style={{
+                width: '100%',
+                maxWidth: 620,
+                margin: '0 auto',
+                textAlign: 'center',
+                fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                color: '#1E1E1E',
+                paddingBottom: 24,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <BloomIcon />
+              </div>
+
+              <p
                 style={{
-                  margin: 0,
-                  fontSize: 14,
-                  color: '#999',
-                  fontWeight: 400,
-                  fontStyle: 'italic',
-                  textAlign: 'center',
-                  whiteSpace: 'nowrap',
+                  margin: '18px 0 0',
+                  fontFamily: "'Instrument Serif', 'Iowan Old Style', Georgia, serif",
+                  fontSize: 32,
+                  lineHeight: 1.1,
+                  color: '#151515',
                 }}
               >
-                now close this app too.
-              </motion.p>
-            )}
+                The Second Coming
+              </p>
+              <p style={{ margin: '8px 0 0', fontSize: 12, letterSpacing: '0.08em', color: '#787878' }}>
+                W. B. YEATS
+              </p>
+
+              <p
+                style={{
+                  margin: '28px auto 0',
+                  maxWidth: 640,
+                  fontSize: 16,
+                  lineHeight: 1.5,
+                  fontWeight: 400,
+                  whiteSpace: 'pre-line',
+                }}
+              >
+                {SECOND_COMING_STANZA_ONE_A}
+              </p>
+
+              <p
+                style={{
+                  margin: '18px auto 0',
+                  maxWidth: 660,
+                  fontSize: 16,
+                  lineHeight: 1.35,
+                  fontWeight: 400,
+                  color: NOTE_ACCENT,
+                }}
+              >
+                {SECOND_COMING_HIGHLIGHT}
+              </p>
+
+              <p
+                style={{
+                  margin: '18px auto 0',
+                  maxWidth: 640,
+                  fontSize: 16,
+                  lineHeight: 1.5,
+                  fontWeight: 400,
+                  whiteSpace: 'pre-line',
+                }}
+              >
+                {SECOND_COMING_STANZA_ONE_B}
+              </p>
+
+              <p
+                style={{
+                  margin: '34px auto 0',
+                  maxWidth: 660,
+                  fontSize: 16,
+                  lineHeight: 1.5,
+                  fontWeight: 400,
+                  whiteSpace: 'pre-line',
+                }}
+              >
+                {SECOND_COMING_STANZA_TWO}
+              </p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

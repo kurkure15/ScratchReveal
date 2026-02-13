@@ -671,7 +671,6 @@ export default function ScratchInteraction({
       style={{
         position: 'fixed',
         inset: 0,
-        height: '100dvh',
         zIndex: 1000,
         display: 'flex',
         alignItems: 'center',
@@ -691,8 +690,8 @@ export default function ScratchInteraction({
           onClick={onClose}
           style={{
             position: 'fixed',
-            top: 16,
-            right: 16,
+            top: 'max(env(safe-area-inset-top), 16px)',
+            right: 'max(env(safe-area-inset-right), 16px)',
             width: 40,
             height: 40,
             border: 'none',

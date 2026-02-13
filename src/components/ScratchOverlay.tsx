@@ -215,8 +215,8 @@ export default function ScratchOverlay({ card, onClose }: ScratchOverlayProps) {
           onClick={onClose}
           style={{
             position: 'absolute',
-            top: 20,
-            right: 20,
+            top: 'max(env(safe-area-inset-top), 20px)',
+            right: 'max(env(safe-area-inset-right), 20px)',
             zIndex: 60,
             background: 'rgba(255,255,255,0.2)',
             border: 'none',

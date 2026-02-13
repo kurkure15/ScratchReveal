@@ -164,6 +164,15 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
+  // Exit fullscreen when leaving game mode.
+  useEffect(() => {
+    return () => {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        void document.exitFullscreen().catch(() => undefined);
+      }
+    };
+  }, []);
+
   // Keep browser chrome/background black while game mode is active.
   useEffect(() => {
     const html = document.documentElement;
@@ -205,8 +214,15 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
       }
     };
 
+    const isStandalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+
     const themeMetaState = upsertMeta('theme-color', GAME_CHROME_COLOR);
-    const appleStatusMetaState = upsertMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');
+    const appleStatusMetaState = upsertMeta(
+      'apple-mobile-web-app-status-bar-style',
+      isStandalone ? 'black' : 'black-translucent'
+    );
 
     return () => {
       html.style.backgroundColor = previousHtmlBg;
@@ -296,18 +312,34 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
       }
     }
 
-    function onTouch(e: TouchEvent) {
-      e.preventDefault();
-      for (let i = 0; i < e.touches.length; i++) {
-        handleInput(e.touches[i].clientX);
+    function handleTouches(touches: TouchList) {
+      for (let i = 0; i < touches.length; i++) {
+        handleInput(touches[i].clientX);
       }
+    }
+
+    function onTouchStart(e: TouchEvent) {
+      e.preventDefault();
+      handleTouches(e.touches);
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      e.preventDefault();
+      handleTouches(e.touches);
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      e.preventDefault();
     }
 
     function onClick(e: MouseEvent) {
       handleInput(e.clientX);
     }
 
-    canvas.addEventListener('touchstart', onTouch, { passive: false });
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', onTouchEnd, { passive: false });
     canvas.addEventListener('click', onClick);
 
     // ── Spawn ──────────────────────────────────────────────────────────
@@ -630,7 +662,10 @@ export default function BugSquashGame({ onClose, onComplete }: BugSquashGameProp
     return () => {
       cancelAnimationFrame(rafRef.current);
       clearInterval(timerRef.current);
-      canvas.removeEventListener('touchstart', onTouch);
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove', onTouchMove);
+      canvas.removeEventListener('touchend', onTouchEnd);
+      canvas.removeEventListener('touchcancel', onTouchEnd);
       canvas.removeEventListener('click', onClick);
       if (audioCtxRef.current) {
         audioCtxRef.current.close();

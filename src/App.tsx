@@ -106,16 +106,6 @@ function App() {
     });
   }, []);
 
-  // Remaining = only cards that are actually in the visible stack
-  const remainingCount = useMemo(() => {
-    const stackIds = new Set(stackCards.map((card) => card.id));
-    let solvedInStack = 0;
-    solvedCardIds.forEach((id) => {
-      if (stackIds.has(id)) solvedInStack += 1;
-    });
-    return Math.max(stackCards.length - solvedInStack, 0);
-  }, [stackCards, solvedCardIds]);
-
   const cardElements = useMemo(
     () => stackCards.map((card) => <Card key={card.id} card={card} />),
     [stackCards]
@@ -141,7 +131,10 @@ function App() {
           width: '100%',
           maxWidth: '100%',
           margin: '0 auto',
-          padding: 24,
+          paddingTop: 'max(env(safe-area-inset-top), 24px)',
+          paddingRight: 'max(env(safe-area-inset-right), 24px)',
+          paddingLeft: 'max(env(safe-area-inset-left), 24px)',
+          paddingBottom: 0,
           position: 'relative',
           overflow: 'visible',
           visibility: activeScratchCard ? 'hidden' : 'visible',
@@ -155,37 +148,42 @@ function App() {
           }}
         >
           <motion.div
-            key={remainingCount}
             style={{
-              fontSize: 120,
+              fontSize: 48,
               fontWeight: 700,
-              lineHeight: 1,
-              color: '#D1D1D1',
+              lineHeight: 1.15,
+              color: '#d1d1d1',
+              maxWidth: 320,
             }}
-            initial={{ scale: 1 }}
-            animate={{ scale: [1, 1.1, 1] }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
           >
-            {remainingCount}
+            Compulsions. Gamified.
           </motion.div>
-          <p
+          <div
             style={{
-              margin: 0,
               marginTop: 12,
-              fontSize: 16,
-              fontWeight: 600,
-              color: '#D1d1d1',
-              maxWidth: 280,
-              lineHeight: 1.4,
+              maxWidth: 360,
             }}
           >
-            Not everything satisfying is obvious.
-          </p>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 14,
+                fontWeight: 600,
+                color: '#d1d1d1',
+                lineHeight: 1.4,
+              }}
+            >
+              Every card is a behavior you already know too well
+            </p>
+          </div>
         </div>
 
         <div
           style={{
-            marginTop: 60,
+            marginTop: 96,
             width: '100%',
             display: 'flex',
             justifyContent: 'flex-start',
@@ -233,7 +231,7 @@ function App() {
             gap: 4,
           }}
         >
-          {stackCards.map((card) => {
+          {[...stackCards].reverse().map((card) => {
             const solved = solvedCardIds.has(card.id);
             const usesCardColorOutline = card.id === '2' || card.id === '3';
             return (
