@@ -6,6 +6,7 @@ import ScratchInteraction from './components/interactions/ScratchInteraction';
 import ComingSoonInteraction from './components/interactions/ComingSoonInteraction';
 import TouchGrassInteraction from './components/interactions/TouchGrassInteraction';
 import VibeCodingInteraction from './components/interactions/VibeCodingInteraction';
+import ReorganizeInteraction from './components/interactions/ReorganizeInteraction';
 import { cards, type CardData } from './data/cards';
 
 const SOLVED_STORAGE_KEY = 'solvedCards';
@@ -252,8 +253,8 @@ function App() {
           />
         )}
         {activeScratchCard && activeScratchCard.id === '3' && (
-          <TouchGrassInteraction
-            key="touchgrass"
+          <ReorganizeInteraction
+            key="reorganize"
             cardColor={activeScratchCard.color}
             onReveal={() => handleCardSolved(activeScratchCard.id)}
             onClose={() => setActiveScratchCard(null)}
