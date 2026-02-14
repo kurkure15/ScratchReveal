@@ -1,6 +1,7 @@
 import type { CardData } from '../data/cards';
 import rocketIcon from '../assets/rocket.svg';
 import vibeCodeBg from '../assets/Vibe Code.svg';
+import eyeTrackingIcon from '../assets/eye_tracking.svg';
 
 interface CardProps {
   card: CardData;
@@ -9,6 +10,9 @@ interface CardProps {
 /** Vibe Coding card: pixel-accurate match to Figma "concepts" frame — same copy, spacing, colors, icon, button. */
 const isVibeCodingCard = (card: CardData) => card.id === '2';
 const isDoomscrollingCard = (card: CardData) => card.id === '3';
+const isDiaryCard = (card: CardData) => card.id === '9';
+const isBeingWatchedCard = (card: CardData) => card.id === '10';
+const isMoreComingSoonCard = (card: CardData) => card.id === '11';
 
 const VIBE_TEXT_COLOR = '#E55342';
 const VIBE_ACCENT = '#A09DFF';
@@ -40,6 +44,13 @@ const CLEAN_DASH_BOXES = [
   { left: 187.87, top: 225.23 },
 ];
 
+const DIARY_LINES: Array<{ text: string; left: number; top: number; opacity?: number }> = [
+  { text: 'words|', left: 23.62, top: 36.02 },
+  { text: 'that', left: 108.96, top: 122.02 },
+  { text: 'fade', left: 108.96, top: 170.02, opacity: 0.3 },
+  { text: 'away', left: 108.96, top: 212.02 },
+];
+
 function HouseholdSuppliesIcon() {
   return (
     <svg width={24} height={24} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -50,6 +61,199 @@ function HouseholdSuppliesIcon() {
       <path d="M13.8 5.1H18a1 1 0 0 1 0 2h-2.3l-1.9-2Z" fill="#000000" />
       <circle cx="18.3" cy="8.8" r="1" fill="#000000" />
     </svg>
+  );
+}
+
+function DiaryCard() {
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        borderRadius: 24,
+        backgroundColor: '#CFAB71',
+        position: 'relative',
+        overflow: 'hidden',
+        userSelect: 'none',
+        borderTop: '3px solid #FFFFFF',
+        borderRight: '3px solid #FFFFFF',
+      }}
+    >
+      {DIARY_LINES.map((line) => (
+        <p
+          key={line.text}
+          style={{
+            position: 'absolute',
+            left: line.left,
+            top: line.top,
+            margin: 0,
+            fontFamily: "'Inter', 'Manrope', sans-serif",
+            fontWeight: 700,
+            fontSize: 32,
+            lineHeight: 1.5,
+            color: '#FFFCF8',
+            opacity: line.opacity ?? 1,
+          }}
+        >
+          {line.text}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function BeingWatchedCard() {
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        borderRadius: 24,
+        backgroundColor: '#2E5284',
+        position: 'relative',
+        overflow: 'hidden',
+        userSelect: 'none',
+        borderRight: '3px solid #6B9DE4',
+      }}
+    >
+      <img
+        src={eyeTrackingIcon}
+        alt=""
+        draggable={false}
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: 146,
+          width: 24,
+          height: 24,
+          transform: 'translateX(-50%)',
+          opacity: 0.3,
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          left: 'calc(50% + 1.5px)',
+          top: 'calc(50% + 36px)',
+          transform: 'translate(-50%, -50%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          opacity: 0.3,
+          color: '#FFFFFF',
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontFamily: "'Instrument Serif', serif",
+            fontSize: 64,
+            lineHeight: 1.5,
+            fontWeight: 400,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {'You are '}
+        </p>
+        <p
+          style={{
+            margin: 0,
+            fontFamily: "'Instrument Serif', serif",
+            fontSize: 32,
+            lineHeight: 1.5,
+            fontWeight: 400,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          being watched
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MoreComingSoonCard() {
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        borderRadius: 24,
+        backgroundColor: '#E7E7E5',
+        position: 'relative',
+        overflow: 'hidden',
+        userSelect: 'none',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          color: '#2E5284',
+          width: '100%',
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontFamily: "'Instrument Serif', serif",
+            fontSize: 64,
+            lineHeight: 1.2,
+            fontWeight: 400,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Building
+        </p>
+        <p
+          style={{
+            margin: 0,
+            fontFamily: "'Instrument Serif', serif",
+            fontSize: 64,
+            lineHeight: 1.2,
+            fontWeight: 400,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          more
+        </p>
+        <p
+          style={{
+            margin: 0,
+            fontFamily: "'Instrument Serif', serif",
+            fontSize: 64,
+            lineHeight: 1.2,
+            fontWeight: 400,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          stuff
+        </p>
+        <p
+          style={{
+            margin: 0,
+            fontFamily: "'Instrument Serif', serif",
+            fontSize: 64,
+            lineHeight: 1.2,
+            fontWeight: 400,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          soon
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -331,12 +535,24 @@ function VibeCodingCard() {
 export default function Card({ card }: CardProps) {
   const isVibe = isVibeCodingCard(card);
   const isDoomscrolling = isDoomscrollingCard(card);
+  const isDiary = isDiaryCard(card);
+  const isBeingWatched = isBeingWatchedCard(card);
+  const isMoreComingSoon = isMoreComingSoonCard(card);
 
   if (isVibe) {
     return <VibeCodingCard />;
   }
   if (isDoomscrolling) {
     return <CleanEverythingCard />;
+  }
+  if (isDiary) {
+    return <DiaryCard />;
+  }
+  if (isBeingWatched) {
+    return <BeingWatchedCard />;
+  }
+  if (isMoreComingSoon) {
+    return <MoreComingSoonCard />;
   }
 
   return (

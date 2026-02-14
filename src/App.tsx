@@ -6,8 +6,9 @@ import ScrollInteraction from './components/interactions/ScrollInteraction';
 import ComingSoonInteraction from './components/interactions/ComingSoonInteraction';
 import VibeCodingInteraction from './components/interactions/VibeCodingInteraction';
 import ReorganizeInteraction from './components/interactions/ReorganizeInteraction';
+import JournalInteraction from './components/interactions/JournalInteraction';
 import { cards, type CardData } from './data/cards';
-import scrollPreviewBg from './assets/Scroll.svg';
+import dragWarPreviewBg from './assets/DragWar.svg';
 
 const SOLVED_STORAGE_KEY = 'solvedCards';
 const DESKTOP_BREAKPOINT = 1024;
@@ -18,16 +19,19 @@ const DESKTOP_CARD_SPACING = DESKTOP_CARD_WIDTH + DESKTOP_CARD_GAP;
 const DESKTOP_HOVER_SCALE = 1.18;
 const DESKTOP_DEFAULT_TOP_RATIO = 628 / 1024;
 const DESKTOP_FEATURED_CARD_IDS = ['3', '2', '1'] as const;
+const DESKTOP_WHEEL_IDLE_MS = 520;
 
 type DesktopRailItem = { kind: 'card'; id: string; card: CardData };
-
-const SCROLL_LETTERS = [
-  { char: 'S', top: 9.02, left: 26.12 },
-  { char: 'C', top: 71.02, left: 24.12 },
-  { char: 'R', top: 133.02, left: 26.12 },
-  { char: 'O', top: 195.02, left: 23.62 },
-  { char: 'L', top: 257.02, left: 27.12 },
-  { char: 'L', top: 319.02, left: 27.12 },
+const DRAG_WAR_LEFT_TITLE = [
+  { char: 'D', top: 71.02, left: 25.87 },
+  { char: 'R', top: 133.02, left: 27.37 },
+  { char: 'A', top: 195.02, left: 25.87 },
+  { char: 'G', top: 257.02, left: 25.37 },
+];
+const DRAG_WAR_RIGHT_TITLE = [
+  { char: 'W', top: 101, left: 249.79 },
+  { char: 'A', top: 163, left: 254.79 },
+  { char: 'R', top: 225, left: 256.29 },
 ];
 
 function useCardSize() {
@@ -61,6 +65,20 @@ function useViewportSize() {
 }
 
 function ScrollPreviewCard() {
+  const titleStyle = {
+    position: 'absolute' as const,
+    margin: 0,
+    color: '#FFFFFF',
+    fontFamily: "'Inter', 'Manrope', sans-serif",
+    fontStyle: 'normal' as const,
+    fontWeight: 700,
+    fontSize: 32,
+    lineHeight: 1.5,
+    textShadow: '0px 3px 10px rgba(0,0,0,0.37)',
+    pointerEvents: 'none' as const,
+    userSelect: 'none' as const,
+  };
+
   return (
     <div
       style={{
@@ -70,12 +88,11 @@ function ScrollPreviewCard() {
         position: 'relative',
         overflow: 'hidden',
         backgroundColor: 'transparent',
-        borderTop: '3px solid #2E84FF',
         userSelect: 'none',
       }}
     >
       <img
-        src={scrollPreviewBg}
+        src={dragWarPreviewBg}
         alt=""
         draggable={false}
         style={{
@@ -88,20 +105,25 @@ function ScrollPreviewCard() {
           userSelect: 'none',
         }}
       />
-      {SCROLL_LETTERS.map((letter, index) => (
+      {DRAG_WAR_LEFT_TITLE.map((letter, index) => (
         <p
-          key={`${letter.char}-${index}`}
+          key={`drag-war-left-${letter.char}-${index}`}
           style={{
-            position: 'absolute',
-            left: letter.left,
+            ...titleStyle,
             top: letter.top,
-            margin: 0,
-            color: '#FFFFFF',
-            fontFamily: "'Inter', 'Manrope', sans-serif",
-            fontWeight: 700,
-            fontSize: 32,
-            lineHeight: 1.5,
-            textShadow: '0px 3px 10px rgba(0,0,0,0.37)',
+            left: letter.left,
+          }}
+        >
+          {letter.char}
+        </p>
+      ))}
+      {DRAG_WAR_RIGHT_TITLE.map((letter, index) => (
+        <p
+          key={`drag-war-right-${letter.char}-${index}`}
+          style={{
+            ...titleStyle,
+            top: letter.top,
+            left: letter.left,
           }}
         >
           {letter.char}
@@ -217,10 +239,15 @@ function App() {
     }
     wheelIdleTimeoutRef.current = window.setTimeout(() => {
       setIsDesktopWheelActive(false);
+      setDesktopPointer(null);
       wheelIdleTimeoutRef.current = null;
-    }, 120);
+    }, DESKTOP_WHEEL_IDLE_MS);
 
-    wheelDeltaRef.current += dominantDelta * 0.85;
+    if (Math.abs(dominantDelta) < 0.35) {
+      return;
+    }
+
+    wheelDeltaRef.current += dominantDelta * 0.72;
 
     if (wheelRafRef.current !== null) return;
     wheelRafRef.current = requestAnimationFrame(() => {
@@ -382,9 +409,10 @@ function App() {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        overscrollBehavior: 'none',
         backgroundColor: '#fff',
       }}
-      onWheel={isDesktop ? handleDesktopWheel : undefined}
+      onWheelCapture={isDesktop ? handleDesktopWheel : undefined}
     >
       {isDesktop ? (
         <div
@@ -393,6 +421,7 @@ function App() {
             flex: 1,
             minHeight: '100dvh',
             overflow: 'hidden',
+            overscrollBehavior: 'none',
             visibility: homeHidden ? 'hidden' : 'visible',
             pointerEvents: homeHidden ? 'none' : 'auto',
             backgroundColor: '#fff',
@@ -409,7 +438,7 @@ function App() {
               display: 'flex',
               alignItems: 'flex-start',
               justifyContent: 'space-between',
-              color: '#D1D1D1',
+              color: '#000000',
             }}
           >
             <motion.h1
@@ -418,11 +447,11 @@ function App() {
               transition={{ duration: 0.35, ease: 'easeOut' }}
               style={{
                 margin: 0,
-                fontFamily: "'Inter', 'Manrope', sans-serif",
-                fontWeight: 900,
+                fontFamily: "'Instrument Serif', 'Times New Roman', serif",
+                fontWeight: 500,
                 fontSize: 48,
                 lineHeight: 1.5,
-                color: '#D1D1D1',
+                color: '#000000',
                 // textShadow: '0px 3px 0px rgba(0,0,0,0.16)',
               }}
             >
@@ -431,12 +460,12 @@ function App() {
 
             <p
               style={{
-                margin: 0,
-                fontFamily: "'Inter', 'Manrope', sans-serif",
-                fontWeight: 600,
+                margin: 8,
+                fontFamily: "'Instrument Serif', 'Times New Roman', serif",
+                fontWeight: 400,
                 fontSize: 36 / 2,
                 lineHeight: 1.2,
-                color: '#D1D1D1',
+                color: '#000000',
                 maxWidth: 255,
                 textAlign: 'left',
               }}
@@ -447,11 +476,11 @@ function App() {
             <p
               style={{
                 margin: 0,
-                fontFamily: "'Inter', 'Manrope', sans-serif",
+                fontFamily: "'Instrument Serif', 'Times New Roman', serif",
                 fontWeight: 400,
                 fontSize: 12,
                 lineHeight: 1.5,
-                color: '#6b6b6b',
+                color: '#000000',
                 textDecoration: 'underline',
                 textDecorationSkipInk: 'none',
                 textAlign: 'left',
@@ -465,6 +494,7 @@ function App() {
           <div
             style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', overflow: 'hidden' }}
             onMouseMove={(event) => {
+              if (isDesktopWheelActive) return;
               const centerX = viewport.width / 2;
               setDesktopPointer({
                 x: event.clientX - centerX,
@@ -506,10 +536,10 @@ function App() {
               const transition = isDesktopWheelActive
                 ? 'none'
                 : isHoveredCard
-                  ? 'transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1)'
+                  ? 'transform 240ms cubic-bezier(0.22, 1, 0.36, 1), top 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms ease-out'
                   : hasHoveredCard
-                    ? 'transform 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-                    : 'transform 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                    ? 'transform 220ms ease-out, top 220ms ease-out, box-shadow 220ms ease-out'
+                    : 'transform 260ms ease-out, top 260ms ease-out, box-shadow 260ms ease-out';
 
               let zIndex = Math.max(1, 120 + Math.round(220 - Math.abs(item.x)));
               if (isHoveredCard) {
@@ -587,7 +617,8 @@ function App() {
                 fontSize: 48,
                 fontWeight: 700,
                 lineHeight: 1.15,
-                color: '#d1d1d1',
+                fontFamily: "'Instrument Serif', 'Times New Roman', serif",
+                color: '#000000',
                 maxWidth: 320,
               }}
               initial={{ opacity: 0, y: 6 }}
@@ -607,7 +638,8 @@ function App() {
                   margin: 0,
                   fontSize: 14,
                   fontWeight: 600,
-                  color: '#d1d1d1',
+                  fontFamily: "'Instrument Serif', 'Times New Roman', serif",
+                  color: '#000000',
                   lineHeight: 1.4,
                 }}
               >
@@ -715,7 +747,15 @@ function App() {
             onClose={() => setActiveScratchCard(null)}
           />
         )}
-        {activeScratchCard && !['1', '2', '3'].includes(activeScratchCard.id) && (
+        {activeScratchCard && activeScratchCard.id === '9' && (
+          <JournalInteraction
+            key="journal"
+            cardColor={activeScratchCard.color}
+            onReveal={() => handleCardSolved(activeScratchCard.id)}
+            onClose={() => setActiveScratchCard(null)}
+          />
+        )}
+        {activeScratchCard && !['1', '2', '3', '9'].includes(activeScratchCard.id) && (
           <ComingSoonInteraction
             key="comingsoon"
             cardColor={activeScratchCard.color}

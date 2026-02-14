@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 
 interface ScrollProps {
   onClose: () => void;
@@ -6,895 +6,1211 @@ interface ScrollProps {
   onReveal?: () => void;
 }
 
-type BlockType = 'gradientField' | 'floatingOrbs' | 'colorBands' | 'meshGradient' | 'singleColor' | 'particleDust';
-type PaletteName = 'sunset' | 'ocean' | 'forest' | 'berry' | 'fire' | 'arctic' | 'dusk' | 'candy' | 'card';
+type GamePhase = 'instructions' | 'countdown' | 'playing' | 'roundEnd' | 'gameOver';
+type RoundWinner = 'ai' | 'user' | 'draw' | null;
 
-interface FloatingOrb {
-  size: number;
-  x: number;
-  y: number;
-  color: string;
-  dx: number;
-  dy: number;
-  duration: number;
-  delay: number;
-}
-
-interface ColorBand {
-  heightPercent: number;
-  colorA: string;
-  colorB: string;
-}
-
-interface MeshBlob {
-  sizePercent: number;
-  xPercent: number;
-  yPercent: number;
-  color: string;
-  dx: number;
-  dy: number;
-  duration: number;
-  delay: number;
-}
-
-interface DustParticle {
-  size: number;
-  xPercent: number;
-  yPercent: number;
-  color: string;
-  opacity: number;
-  riseDuration: number;
-  wobbleDuration: number;
-  delay: number;
-  wobbleDistance: number;
-}
-
-interface ContentBlock {
-  id: string;
-  type: BlockType;
-  paletteName: PaletteName;
-  palette: [string, string, string];
-  gradientKind?: 'linear' | 'radial';
-  gradientAngle?: number;
-  radialX?: number;
-  radialY?: number;
-  singleColor?: string;
-  backgroundColor?: string;
-  orbs?: FloatingOrb[];
-  bands?: ColorBand[];
-  blobs?: MeshBlob[];
-  particles?: DustParticle[];
-  accentColor?: string;
-}
-
-const BLOCK_COUNT = 60;
-const TIMER_FREEZE_SECONDS = 30;
-const TIMER_SHOW_AFTER_SECONDS = 5;
-
-const TYPE_WEIGHTS: Array<{ type: BlockType; weight: number }> = [
-  { type: 'gradientField', weight: 30 },
-  { type: 'floatingOrbs', weight: 25 },
-  { type: 'colorBands', weight: 15 },
-  { type: 'meshGradient', weight: 15 },
-  { type: 'singleColor', weight: 10 },
-  { type: 'particleDust', weight: 5 },
-];
-
-const COMPLEMENTS: Record<PaletteName, PaletteName[]> = {
-  sunset: ['ocean', 'dusk'],
-  ocean: ['sunset', 'fire'],
-  forest: ['berry', 'candy'],
-  berry: ['forest', 'arctic'],
-  fire: ['ocean', 'arctic'],
-  arctic: ['berry', 'fire'],
-  dusk: ['sunset', 'candy'],
-  candy: ['dusk', 'forest'],
-  card: ['dusk', 'ocean'],
-};
-
-const BASE_PALETTES: Omit<Record<PaletteName, [string, string, string]>, 'card'> = {
-  sunset: ['#FF6B6B', '#FEC89A', '#FFD93D'],
-  ocean: ['#0077B6', '#00B4D8', '#90E0EF'],
-  forest: ['#2D6A4F', '#52B788', '#B7E4C7'],
-  berry: ['#7B2CBF', '#C77DFF', '#E0AAFF'],
-  fire: ['#E63946', '#F4845F', '#F7B267'],
-  arctic: ['#CAF0F8', '#ADE8F4', '#48CAE4'],
-  dusk: ['#22223B', '#4A4E69', '#9A8C98'],
-  candy: ['#FF69B4', '#FF85C0', '#FFC4E1'],
-};
+const GOAL_LEFT_RATIO = 268 / 1440;
+const GOAL_RIGHT_RATIO = 1169 / 1440;
+const ROPE_LEFT_RATIO = 500 / 1440;
+const ROPE_RIGHT_RATIO = 940 / 1440;
+const ROPE_CENTER_Y_RATIO = 520 / 1024;
+const MOBILE_BREAKPOINT = 900;
+const MOBILE_ROPE_X_RATIO = 196.5 / 393;
+const MOBILE_ROPE_TOP_RATIO = 311.750244140625 / 852;
+const MOBILE_ROPE_BOTTOM_RATIO = 559.9998779296875 / 852;
+const MOBILE_GOAL_TOP_CENTER_RATIO = 156 / 852;
+const MOBILE_GOAL_BOTTOM_CENTER_RATIO = 712 / 852;
+const CROSS_ICON_SRC = '/src/assets/Cross.svg';
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function randRange(min: number, max: number) {
-  return min + Math.random() * (max - min);
-}
-
-function randInt(min: number, max: number) {
-  return Math.floor(randRange(min, max + 1));
-}
-
-function pickOne<T>(items: readonly T[]) {
-  return items[Math.floor(Math.random() * items.length)];
-}
-
-function normalizeHex(hex: string) {
-  const value = hex.trim();
-  if (/^#[0-9a-fA-F]{6}$/.test(value)) return value;
-  if (/^#[0-9a-fA-F]{3}$/.test(value)) {
-    const short = value.slice(1);
-    return `#${short[0]}${short[0]}${short[1]}${short[1]}${short[2]}${short[2]}`;
-  }
-  return '#4A4E69';
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const safe = normalizeHex(hex).slice(1);
-  return [
-    Number.parseInt(safe.slice(0, 2), 16),
-    Number.parseInt(safe.slice(2, 4), 16),
-    Number.parseInt(safe.slice(4, 6), 16),
-  ];
-}
-
-function rgbToHex(r: number, g: number, b: number) {
-  return `#${[r, g, b]
-    .map((part) => clamp(Math.round(part), 0, 255).toString(16).padStart(2, '0'))
-    .join('')}`;
-}
-
-function mixHex(a: string, b: string, t: number) {
-  const [ar, ag, ab] = hexToRgb(a);
-  const [br, bg, bb] = hexToRgb(b);
-  return rgbToHex(
-    ar + (br - ar) * t,
-    ag + (bg - ag) * t,
-    ab + (bb - ab) * t,
-  );
-}
-
-function lighten(hex: string, amount: number) {
-  return mixHex(hex, '#FFFFFF', clamp(amount, 0, 1));
-}
-
-function darken(hex: string, amount: number) {
-  return mixHex(hex, '#000000', clamp(amount, 0, 1));
-}
-
-function buildPalettes(cardColor: string): Record<PaletteName, [string, string, string]> {
-  const safeCard = normalizeHex(cardColor);
-  return {
-    ...BASE_PALETTES,
-    card: [
-      darken(safeCard, 0.15),
-      safeCard,
-      lighten(safeCard, 0.28),
-    ],
-  };
-}
-
-function pickWeightedType(previous: BlockType | null): BlockType {
-  const options = previous
-    ? TYPE_WEIGHTS.filter(({ type }) => type !== previous)
-    : TYPE_WEIGHTS;
-  const totalWeight = options.reduce((sum, item) => sum + item.weight, 0);
-  let cursor = randRange(0, totalWeight);
-
-  for (const option of options) {
-    cursor -= option.weight;
-    if (cursor <= 0) return option.type;
-  }
-
-  return options[options.length - 1].type;
-}
-
-function pickPaletteName(previous: PaletteName | null, allNames: PaletteName[]): PaletteName {
-  if (!previous) return pickOne(allNames);
-  const candidates = [previous, ...COMPLEMENTS[previous]].filter((name, index, arr): name is PaletteName => {
-    return arr.indexOf(name) === index && allNames.includes(name);
-  });
-  return pickOne(candidates);
-}
-
-function createGradientBlock(id: number, paletteName: PaletteName, palette: [string, string, string]): ContentBlock {
-  const gradientKind: 'linear' | 'radial' = Math.random() > 0.45 ? 'linear' : 'radial';
-  return {
-    id: `scroll-block-${id}`,
-    type: 'gradientField',
-    paletteName,
-    palette,
-    gradientKind,
-    gradientAngle: randRange(0, 360),
-    radialX: randRange(15, 85),
-    radialY: randRange(15, 85),
-  };
-}
-
-function createOrbsBlock(id: number, paletteName: PaletteName, palette: [string, string, string]): ContentBlock {
-  const orbCount = randInt(3, 5);
-  const orbs: FloatingOrb[] = Array.from({ length: orbCount }, (_, index) => {
-    const color = palette[index % palette.length];
-    return {
-      size: randInt(150, 300),
-      x: randRange(-10, 80),
-      y: randRange(-10, 80),
-      color,
-      dx: randRange(-30, 30),
-      dy: randRange(-30, 30),
-      duration: randRange(6, 10),
-      delay: randRange(-2.5, 0),
-    };
-  });
-
-  return {
-    id: `scroll-block-${id}`,
-    type: 'floatingOrbs',
-    paletteName,
-    palette,
-    orbs,
-    backgroundColor: '#0A0A0A',
-  };
-}
-
-function createBandsBlock(id: number, paletteName: PaletteName, palette: [string, string, string]): ContentBlock {
-  const bandCount = randInt(4, 6);
-  const weights = Array.from({ length: bandCount }, () => randRange(15, 25));
-  const total = weights.reduce((sum, part) => sum + part, 0);
-  const ascending = Math.random() > 0.5;
-  const paletteOrder = ascending ? [...palette] : [...palette].reverse();
-
-  const bands: ColorBand[] = weights.map((weight, index) => {
-    const t = bandCount === 1 ? 0 : index / (bandCount - 1);
-    const base = mixHex(paletteOrder[0], paletteOrder[2], t);
-    return {
-      heightPercent: (weight / total) * 100,
-      colorA: darken(base, 0.1),
-      colorB: lighten(base, 0.08),
-    };
-  });
-
-  return {
-    id: `scroll-block-${id}`,
-    type: 'colorBands',
-    paletteName,
-    palette,
-    bands,
-  };
-}
-
-function createMeshBlock(id: number, paletteName: PaletteName, palette: [string, string, string]): ContentBlock {
-  const blobs: MeshBlob[] = Array.from({ length: 4 }, (_, index) => ({
-    sizePercent: randRange(60, 80),
-    xPercent: randRange(-20, 60),
-    yPercent: randRange(-20, 60),
-    color: palette[index % palette.length],
-    dx: randRange(-20, 20),
-    dy: randRange(-20, 20),
-    duration: randRange(8, 12),
-    delay: randRange(-3, 0),
-  }));
-
-  return {
-    id: `scroll-block-${id}`,
-    type: 'meshGradient',
-    paletteName,
-    palette,
-    backgroundColor: darken(palette[0], 0.4),
-    blobs,
-  };
-}
-
-function createSingleColorBlock(id: number, paletteName: PaletteName, palette: [string, string, string]): ContentBlock {
-  const deep = darken(palette[0], 0.35);
-  return {
-    id: `scroll-block-${id}`,
-    type: 'singleColor',
-    paletteName,
-    palette,
-    singleColor: deep,
-  };
-}
-
-function createParticlesBlock(id: number, paletteName: PaletteName, palette: [string, string, string]): ContentBlock {
-  const particleCount = randInt(40, 60);
-  const accent = palette[1];
-  const particles: DustParticle[] = Array.from({ length: particleCount }, () => {
-    const useAccent = Math.random() > 0.6;
-    return {
-      size: randRange(2, 4),
-      xPercent: randRange(0, 100),
-      yPercent: randRange(0, 100),
-      color: useAccent ? accent : '#FFFFFF',
-      opacity: randRange(0.3, 0.7),
-      riseDuration: randRange(15, 25),
-      wobbleDuration: randRange(2.5, 5),
-      delay: randRange(-12, 0),
-      wobbleDistance: randRange(3, 12),
-    };
-  });
-
-  return {
-    id: `scroll-block-${id}`,
-    type: 'particleDust',
-    paletteName,
-    palette,
-    particles,
-    accentColor: accent,
-    backgroundColor: '#0D0D0D',
-  };
-}
-
-function formatClock(seconds: number) {
-  const mm = String(Math.floor(seconds / 60)).padStart(2, '0');
-  const ss = String(seconds % 60).padStart(2, '0');
-  return `${mm}:${ss}`;
+function baseAiForceForRound(round: number) {
+  if (round === 1) return 0.3;
+  if (round === 2) return 0.5;
+  return 0.7;
 }
 
 export default function ScrollInteraction({ onClose, cardColor, onReveal }: ScrollProps) {
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const timerIntervalRef = useRef<number | null>(null);
-  const idleTimerRef = useRef<number | null>(null);
-  const timeoutRef = useRef<number[]>([]);
+  void cardColor;
+
+  const [gamePhase, setGamePhase] = useState<GamePhase>('instructions');
+  const [roundNumber, setRoundNumber] = useState<1 | 2 | 3>(1);
+  const [aiScore, setAiScore] = useState(0);
+  const [userScore, setUserScore] = useState(0);
+  const [roundWinner, setRoundWinner] = useState<RoundWinner>(null);
+  const [crossIconFailed, setCrossIconFailed] = useState(false);
+  const [isMobileLayout, setIsMobileLayout] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  });
+
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const gameElementsRef = useRef<HTMLDivElement | null>(null);
+  const bgTintRef = useRef<HTMLDivElement | null>(null);
+  const flashRef = useRef<HTMLDivElement | null>(null);
+
+  const ropeRef = useRef<HTMLDivElement | null>(null);
+  const ropeLeftTintRef = useRef<HTMLDivElement | null>(null);
+  const ropeRightTintRef = useRef<HTMLDivElement | null>(null);
+
+  const yellowKnotRef = useRef<HTMLDivElement | null>(null);
+  const redDotRef = useRef<HTMLDivElement | null>(null);
+  const blueDotRef = useRef<HTMLDivElement | null>(null);
+
+  const countdownTextRef = useRef<HTMLDivElement | null>(null);
+
+  const gameOverWrapRef = useRef<HTMLDivElement | null>(null);
+  const gameOverLine1Ref = useRef<HTMLDivElement | null>(null);
+  const gameOverLine2Ref = useRef<HTMLDivElement | null>(null);
+  const gameOverLine3Ref = useRef<HTMLDivElement | null>(null);
+
+  const rafRef = useRef<number | null>(null);
+  const timeoutIdsRef = useRef<number[]>([]);
+
+  const ropeOffsetRef = useRef(0);
+  const isDraggingRef = useRef(false);
+  const dragLastXRef = useRef(0);
+  const currentDragXRef = useRef(0);
+  const aiForceRef = useRef(0);
+  const elapsedTimeRef = useRef(0);
+
+  const roundNumberRef = useRef<1 | 2 | 3>(1);
+  const aiScoreRef = useRef(0);
+  const userScoreRef = useRef(0);
+  const phaseRef = useRef<GamePhase>('instructions');
+
+  const lastFrameTsRef = useRef<number | null>(null);
+  const lastCreakTsRef = useRef(0);
+  const roundResolvedRef = useRef(false);
+  const onRevealCalledRef = useRef(false);
+
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const freezeStartedRef = useRef(false);
-  const hintShownRef = useRef(false);
-  const onRevealRef = useRef(onReveal);
-  const originalBodyOverflowRef = useRef<string>('');
-  const originalThemeColorRef = useRef<string | null>(null);
-  const createdThemeMetaRef = useRef<HTMLMetaElement | null>(null);
+  const audioMasterRef = useRef<GainNode | null>(null);
 
-  const [timerSeconds, setTimerSeconds] = useState(0);
-  const [showTimer, setShowTimer] = useState(false);
-  const [isFrozen, setIsFrozen] = useState(false);
-  const [showDarkOverlay, setShowDarkOverlay] = useState(false);
-  const [showFirstLine, setShowFirstLine] = useState(false);
-  const [showSecondLine, setShowSecondLine] = useState(false);
+  const queueTimeout = useCallback((fn: () => void, delay: number) => {
+    const id = window.setTimeout(fn, delay);
+    timeoutIdsRef.current.push(id);
+    return id;
+  }, []);
 
-  onRevealRef.current = onReveal;
+  const clearQueuedTimeouts = useCallback(() => {
+    timeoutIdsRef.current.forEach((id) => window.clearTimeout(id));
+    timeoutIdsRef.current = [];
+  }, []);
 
-  const palettes = useMemo(() => buildPalettes(cardColor), [cardColor]);
+  const ensureAudioContext = useCallback(() => {
+    if (audioCtxRef.current) return audioCtxRef.current;
 
-  const contentBlocks = useMemo<ContentBlock[]>(() => {
-    const blocks: ContentBlock[] = [];
-    const names = Object.keys(palettes) as PaletteName[];
-    let previousType: BlockType | null = null;
-    let previousPalette: PaletteName | null = null;
+    const AudioCtor = window.AudioContext
+      || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
 
-    for (let i = 0; i < BLOCK_COUNT; i += 1) {
-      const type = pickWeightedType(previousType);
-      const paletteName = pickPaletteName(previousPalette, names);
-      const palette = palettes[paletteName];
+    if (!AudioCtor) return null;
 
-      if (type === 'gradientField') {
-        blocks.push(createGradientBlock(i, paletteName, palette));
-      } else if (type === 'floatingOrbs') {
-        blocks.push(createOrbsBlock(i, paletteName, palette));
-      } else if (type === 'colorBands') {
-        blocks.push(createBandsBlock(i, paletteName, palette));
-      } else if (type === 'meshGradient') {
-        blocks.push(createMeshBlock(i, paletteName, palette));
-      } else if (type === 'singleColor') {
-        blocks.push(createSingleColorBlock(i, paletteName, palette));
-      } else {
-        blocks.push(createParticlesBlock(i, paletteName, palette));
-      }
+    const ctx = new AudioCtor();
+    const master = ctx.createGain();
+    master.gain.value = 1;
+    master.connect(ctx.destination);
 
-      previousType = type;
-      previousPalette = paletteName;
+    audioCtxRef.current = ctx;
+    audioMasterRef.current = master;
+
+    return ctx;
+  }, []);
+
+  const playTone = useCallback((frequency: number, durationMs: number, peakGain: number, delayMs = 0) => {
+    const ctx = ensureAudioContext();
+    const master = audioMasterRef.current;
+    if (!ctx || !master) return;
+
+    if (ctx.state === 'suspended') {
+      void ctx.resume();
     }
 
-    return blocks;
-  }, [palettes]);
+    const start = ctx.currentTime + delayMs / 1000;
+    const end = start + durationMs / 1000;
 
-  const setThemeColor = useCallback((color: string) => {
-    const existing = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
-    if (existing) {
-      existing.setAttribute('content', color);
-      createdThemeMetaRef.current = existing;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(frequency, start);
+
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.linearRampToValueAtTime(peakGain, start + Math.min(0.02, durationMs / 1000 / 2));
+    gain.gain.exponentialRampToValueAtTime(0.0001, end);
+
+    osc.connect(gain);
+    gain.connect(master);
+
+    osc.start(start);
+    osc.stop(end + 0.02);
+
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
+  }, [ensureAudioContext]);
+
+  const playNoiseBurst = useCallback((durationMs: number, frequency: number, peakGain: number) => {
+    const ctx = ensureAudioContext();
+    const master = audioMasterRef.current;
+    if (!ctx || !master) return;
+
+    const sampleCount = Math.max(1, Math.floor(ctx.sampleRate * (durationMs / 1000)));
+    const buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < sampleCount; i += 1) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const source = ctx.createBufferSource();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+
+    filter.type = 'bandpass';
+    filter.frequency.value = frequency;
+    filter.Q.value = 0.9;
+
+    gain.gain.value = peakGain;
+
+    source.buffer = buffer;
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(master);
+
+    source.start();
+    source.stop(ctx.currentTime + durationMs / 1000 + 0.01);
+
+    source.onended = () => {
+      source.disconnect();
+      filter.disconnect();
+      gain.disconnect();
+    };
+  }, [ensureAudioContext]);
+
+  const vibrate = useCallback((pattern: number | number[]) => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(pattern);
+    }
+  }, []);
+
+  const setBlueGrabbedVisual = useCallback((grabbed: boolean) => {
+    const blue = blueDotRef.current;
+    if (!blue) return;
+
+    if (grabbed) {
+      blue.style.background = '#2E84FF';
+      blue.style.transform = 'translate(-50%, -50%) scale(1.3)';
+      blue.style.boxShadow = '0 0 12px rgba(46,132,255,0.6)';
+    } else {
+      blue.style.background = '#FFFFFF';
+      blue.style.transform = 'translate(-50%, -50%) scale(1)';
+      blue.style.boxShadow = 'none';
+    }
+  }, []);
+
+  const getRopeMetrics = useCallback((ropeOffset: number) => {
+    if (isMobileLayout) {
+      const ropeBaseTop = window.innerHeight * MOBILE_ROPE_TOP_RATIO;
+      const ropeBaseBottom = window.innerHeight * MOBILE_ROPE_BOTTOM_RATIO;
+      const ropeCenterY = (ropeBaseTop + ropeBaseBottom) / 2;
+      const ropeHalfLength = (ropeBaseBottom - ropeBaseTop) / 2;
+      const ropeCenterX = window.innerWidth * MOBILE_ROPE_X_RATIO;
+
+      const goalTop = window.innerHeight * MOBILE_GOAL_TOP_CENTER_RATIO;
+      const goalBottom = window.innerHeight * MOBILE_GOAL_BOTTOM_CENTER_RATIO;
+
+      const ropeStart = ropeCenterY - ropeHalfLength + ropeOffset;
+      const ropeEnd = ropeCenterY + ropeHalfLength + ropeOffset;
+
+      const aiWinOffset = goalTop - (ropeCenterY - ropeHalfLength);
+      const userWinOffset = goalBottom - (ropeCenterY + ropeHalfLength);
+      const span = userWinOffset - aiWinOffset;
+      const normalized = span === 0 ? 0.5 : clamp((ropeOffset - aiWinOffset) / span, 0, 1);
+
+      return {
+        isMobile: true as const,
+        ropeCenterX,
+        ropeCenterY,
+        ropeStart,
+        ropeEnd,
+        goalMin: goalTop,
+        goalMax: goalBottom,
+        aiWinOffset,
+        userWinOffset,
+        normalized,
+      };
+    }
+
+    const ropeBaseLeft = window.innerWidth * ROPE_LEFT_RATIO;
+    const ropeBaseRight = window.innerWidth * ROPE_RIGHT_RATIO;
+    const ropeCenterX = (ropeBaseLeft + ropeBaseRight) / 2;
+    const ropeHalfLength = (ropeBaseRight - ropeBaseLeft) / 2;
+    const ropeCenterY = window.innerHeight * ROPE_CENTER_Y_RATIO;
+
+    const goalLeft = window.innerWidth * GOAL_LEFT_RATIO;
+    const goalRight = window.innerWidth * GOAL_RIGHT_RATIO;
+
+    const ropeStart = ropeCenterX - ropeHalfLength + ropeOffset;
+    const ropeEnd = ropeCenterX + ropeHalfLength + ropeOffset;
+
+    const aiWinOffset = goalLeft - (ropeCenterX - ropeHalfLength);
+    const userWinOffset = goalRight - (ropeCenterX + ropeHalfLength);
+    const span = userWinOffset - aiWinOffset;
+    const normalized = span === 0 ? 0.5 : clamp((ropeOffset - aiWinOffset) / span, 0, 1);
+
+    return {
+      isMobile: false as const,
+      ropeCenterX,
+      ropeCenterY,
+      ropeStart,
+      ropeEnd,
+      goalMin: goalLeft,
+      goalMax: goalRight,
+      aiWinOffset,
+      userWinOffset,
+      normalized,
+    };
+  }, [isMobileLayout]);
+
+  const updateVisualsFromOffset = useCallback((ropeOffset: number) => {
+    const metrics = getRopeMetrics(ropeOffset);
+
+    if (ropeRef.current) {
+      if (metrics.isMobile) {
+        ropeRef.current.style.left = `${metrics.ropeCenterX}px`;
+        ropeRef.current.style.top = `${metrics.ropeStart}px`;
+        ropeRef.current.style.width = '8px';
+        ropeRef.current.style.height = `${metrics.ropeEnd - metrics.ropeStart}px`;
+        ropeRef.current.style.right = 'auto';
+      } else {
+        ropeRef.current.style.left = `${metrics.ropeStart}px`;
+        ropeRef.current.style.top = `${metrics.ropeCenterY}px`;
+        ropeRef.current.style.width = `${metrics.ropeEnd - metrics.ropeStart}px`;
+        ropeRef.current.style.height = '8px';
+        ropeRef.current.style.right = 'auto';
+      }
+    }
+
+    if (yellowKnotRef.current) {
+      yellowKnotRef.current.style.left = `${metrics.ropeCenterX}px`;
+      yellowKnotRef.current.style.top = `${metrics.ropeCenterY}px`;
+
+      if (isDraggingRef.current) {
+        yellowKnotRef.current.style.boxShadow = '0 0 16px rgba(255,217,61,0.7)';
+      } else {
+        yellowKnotRef.current.style.boxShadow = '0 0 8px rgba(255,217,61,0.3)';
+      }
+    }
+
+    if (redDotRef.current) {
+      redDotRef.current.style.left = `${metrics.isMobile ? metrics.ropeCenterX : metrics.ropeStart}px`;
+      redDotRef.current.style.top = `${metrics.isMobile ? metrics.ropeStart : metrics.ropeCenterY}px`;
+      redDotRef.current.style.boxShadow = 'none';
+    }
+
+    if (blueDotRef.current) {
+      blueDotRef.current.style.left = `${metrics.isMobile ? metrics.ropeCenterX : metrics.ropeEnd}px`;
+      blueDotRef.current.style.top = `${metrics.isMobile ? metrics.ropeEnd : metrics.ropeCenterY}px`;
+    }
+
+    if (ropeLeftTintRef.current) {
+      const leftOpacity = metrics.normalized < 0.4 ? clamp((0.4 - metrics.normalized) / 0.4 * 0.3, 0, 0.3) : 0;
+      ropeLeftTintRef.current.style.opacity = `${leftOpacity}`;
+    }
+
+    if (ropeRightTintRef.current) {
+      const rightOpacity = metrics.normalized > 0.6 ? clamp((metrics.normalized - 0.6) / 0.4 * 0.3, 0, 0.3) : 0;
+      ropeRightTintRef.current.style.opacity = `${rightOpacity}`;
+    }
+
+    if (bgTintRef.current) {
+      if (metrics.normalized < 0.4) {
+        const alpha = (0.4 - metrics.normalized) * 0.15;
+        bgTintRef.current.style.background = `rgba(230,57,70,${alpha})`;
+      } else if (metrics.normalized > 0.6) {
+        const alpha = (metrics.normalized - 0.6) * 0.15;
+        bgTintRef.current.style.background = `rgba(74,144,217,${alpha})`;
+      } else {
+        bgTintRef.current.style.background = 'rgba(0,0,0,0)';
+      }
+    }
+  }, [getRopeMetrics]);
+
+  const resetRoundPhysics = useCallback(() => {
+    ropeOffsetRef.current = 0;
+    elapsedTimeRef.current = 0;
+    aiForceRef.current = 0;
+    isDraggingRef.current = false;
+    dragLastXRef.current = 0;
+    currentDragXRef.current = 0;
+    roundResolvedRef.current = false;
+    lastFrameTsRef.current = null;
+    lastCreakTsRef.current = 0;
+    setBlueGrabbedVisual(false);
+    if (ropeRef.current) {
+      ropeRef.current.style.transform = isMobileLayout ? 'translateX(0px)' : 'translateY(0px)';
+    }
+    updateVisualsFromOffset(0);
+  }, [isMobileLayout, setBlueGrabbedVisual, updateVisualsFromOffset]);
+
+  const flashScreen = useCallback((color: string, duration = 200) => {
+    const flash = flashRef.current;
+    if (!flash) return;
+
+    flash.style.background = color;
+    flash.style.opacity = '1';
+    queueTimeout(() => {
+      flash.style.opacity = '0';
+    }, duration);
+  }, [queueTimeout]);
+
+  const revealGameOverLine = useCallback((node: HTMLDivElement | null, text: string) => {
+    if (!node) return;
+    node.textContent = text;
+    node.style.opacity = '0';
+    node.style.transform = 'translateY(10px)';
+    node.style.transition = 'none';
+
+    requestAnimationFrame(() => {
+      node.style.transition = 'opacity 600ms ease, transform 600ms ease';
+      node.style.opacity = '1';
+      node.style.transform = 'translateY(0)';
+    });
+  }, []);
+
+  const startGameOver = useCallback((winner: 'ai' | 'user') => {
+    setGamePhase('gameOver');
+
+    if (gameElementsRef.current) {
+      gameElementsRef.current.style.transition = 'opacity 500ms ease';
+      gameElementsRef.current.style.opacity = '0';
+    }
+
+    if (bgTintRef.current) {
+      bgTintRef.current.style.background = 'rgba(0,0,0,0)';
+    }
+    if (flashRef.current) {
+      flashRef.current.style.opacity = '0';
+      flashRef.current.style.background = 'transparent';
+    }
+
+    const lines = winner === 'ai'
+      ? [
+          "hahahha, and I don't even have hands",
+          'You lose!',
+          'tell your friends',
+        ]
+      : [
+          'Congratulations!',
+          'You Win.',
+          'tell your friends',
+        ];
+
+    const topSize = isMobileLayout ? 16 : 20;
+    const headlineSize = isMobileLayout ? 32 : 40;
+    const ctaSize = isMobileLayout ? 16 : 20;
+
+    if (gameOverLine1Ref.current) {
+      gameOverLine1Ref.current.style.color = winner === 'user' ? '#19C189' : '#FFFFFF';
+      gameOverLine1Ref.current.style.fontSize = `${topSize}px`;
+      gameOverLine1Ref.current.style.fontStyle = 'normal';
+      gameOverLine1Ref.current.style.marginTop = '0px';
+      gameOverLine1Ref.current.style.textDecoration = 'none';
+    }
+
+    if (gameOverLine2Ref.current) {
+      gameOverLine2Ref.current.style.color = winner === 'user' ? '#D1D1D1' : '#C1191C';
+      gameOverLine2Ref.current.style.fontSize = `${headlineSize}px`;
+      gameOverLine2Ref.current.style.fontStyle = 'normal';
+      gameOverLine2Ref.current.style.marginTop = '0px';
+      gameOverLine2Ref.current.style.textDecoration = 'none';
+    }
+
+    if (gameOverLine3Ref.current) {
+      gameOverLine3Ref.current.style.color = '#D1D1D1';
+      gameOverLine3Ref.current.style.fontSize = `${ctaSize}px`;
+      gameOverLine3Ref.current.style.fontStyle = 'normal';
+      gameOverLine3Ref.current.style.marginTop = `${isMobileLayout ? 24 : 48}px`;
+      gameOverLine3Ref.current.style.textDecoration = 'underline';
+      gameOverLine3Ref.current.style.textUnderlineOffset = '3px';
+    }
+
+    if (gameOverWrapRef.current) {
+      gameOverWrapRef.current.style.opacity = '1';
+    }
+
+    queueTimeout(() => revealGameOverLine(gameOverLine1Ref.current, lines[0]), 500);
+    queueTimeout(() => revealGameOverLine(gameOverLine2Ref.current, lines[1]), 2000);
+    queueTimeout(() => revealGameOverLine(gameOverLine3Ref.current, lines[2]), 3000);
+
+    playTone(330, 400, 0.05);
+    vibrate([40, 30, 60]);
+
+    if (!onRevealCalledRef.current) {
+      onRevealCalledRef.current = true;
+      onReveal?.();
+    }
+  }, [isMobileLayout, onReveal, playTone, queueTimeout, revealGameOverLine, vibrate]);
+
+  const startCountdown = useCallback((round: 1 | 2 | 3) => {
+    setRoundWinner(null);
+    setGamePhase('countdown');
+
+    resetRoundPhysics();
+
+    queueTimeout(() => {
+      const countdownNode = countdownTextRef.current;
+      if (!countdownNode) return;
+
+      const steps = [
+        { label: '3', frequency: 440, color: '#FFFFFF' },
+        { label: '2', frequency: 550, color: '#FFFFFF' },
+        { label: '1', frequency: 660, color: '#FFFFFF' },
+        { label: 'PULL!', frequency: 880, color: '#4A90D9' },
+      ];
+
+      steps.forEach((step, index) => {
+        queueTimeout(() => {
+          if (!countdownTextRef.current) return;
+          const node = countdownTextRef.current;
+          node.textContent = step.label;
+          node.style.color = step.color;
+          node.style.opacity = '1';
+          node.style.transform = 'translate(-50%, -50%) scale(1.5)';
+          node.style.transition = 'none';
+
+          requestAnimationFrame(() => {
+            node.style.transition = 'opacity 800ms ease, transform 800ms ease';
+            node.style.opacity = '0.5';
+            node.style.transform = 'translate(-50%, -50%) scale(1)';
+          });
+
+          playTone(step.frequency, 100, 0.06);
+          vibrate(10);
+        }, index * 800);
+      });
+
+      queueTimeout(() => {
+        if (countdownTextRef.current) {
+          countdownTextRef.current.style.opacity = '0';
+        }
+
+        setGamePhase('playing');
+        setRoundWinner(null);
+        ropeOffsetRef.current = 0;
+        elapsedTimeRef.current = 0;
+        aiForceRef.current = 0;
+        isDraggingRef.current = false;
+        setBlueGrabbedVisual(false);
+        updateVisualsFromOffset(ropeOffsetRef.current);
+      }, steps.length * 800 + 400);
+    }, 30);
+
+    roundNumberRef.current = round;
+  }, [playTone, queueTimeout, resetRoundPhysics, setBlueGrabbedVisual, updateVisualsFromOffset, vibrate]);
+
+  const endRound = useCallback((winner: 'ai' | 'user' | 'draw') => {
+    if (roundResolvedRef.current) return;
+    roundResolvedRef.current = true;
+
+    isDraggingRef.current = false;
+    setBlueGrabbedVisual(false);
+
+    setRoundWinner(winner);
+    setGamePhase('roundEnd');
+
+    const metrics = getRopeMetrics(ropeOffsetRef.current);
+
+    if (winner === 'ai') {
+      ropeOffsetRef.current = metrics.aiWinOffset;
+      updateVisualsFromOffset(ropeOffsetRef.current);
+      flashScreen('rgba(230,57,70,0.15)', 200);
+      playTone(80, 200, 0.1);
+      vibrate([50, 30, 80]);
+    } else if (winner === 'user') {
+      ropeOffsetRef.current = metrics.userWinOffset;
+      updateVisualsFromOffset(ropeOffsetRef.current);
+      flashScreen('rgba(74,144,217,0.15)', 200);
+      playTone(523, 150, 0.08);
+      playTone(659, 150, 0.08, 150);
+      vibrate([30, 20, 50]);
+    }
+
+    if (winner === 'draw') {
+      queueTimeout(() => {
+        startCountdown(roundNumberRef.current);
+      }, 1000);
       return;
     }
 
-    const meta = document.createElement('meta');
-    meta.setAttribute('name', 'theme-color');
-    meta.setAttribute('content', color);
-    document.head.appendChild(meta);
-    createdThemeMetaRef.current = meta;
-  }, []);
+    const nextAi = winner === 'ai' ? aiScoreRef.current + 1 : aiScoreRef.current;
+    const nextUser = winner === 'user' ? userScoreRef.current + 1 : userScoreRef.current;
 
-  const clearIdleTimer = useCallback(() => {
-    if (idleTimerRef.current !== null) {
-      window.clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = null;
-    }
-  }, []);
+    aiScoreRef.current = nextAi;
+    userScoreRef.current = nextUser;
 
-  const clearTimerInterval = useCallback(() => {
-    if (timerIntervalRef.current !== null) {
-      window.clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
-  }, []);
+    setAiScore(nextAi);
+    setUserScore(nextUser);
 
-  const clearManagedTimeouts = useCallback(() => {
-    timeoutRef.current.forEach((id) => window.clearTimeout(id));
-    timeoutRef.current = [];
-  }, []);
-
-  const playFreezeTone = useCallback(() => {
-    try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioContext();
-      }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        void ctx.resume();
+    queueTimeout(() => {
+      if (nextAi >= 2 || nextUser >= 2) {
+        startGameOver(nextAi >= 2 ? 'ai' : 'user');
+        return;
       }
 
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 330;
+      const nextRound = ((roundNumberRef.current + 1) as 2 | 3);
+      roundNumberRef.current = nextRound;
+      setRoundNumber(nextRound);
+      startCountdown(nextRound);
+    }, 1500);
+  }, [flashScreen, getRopeMetrics, playTone, queueTimeout, setBlueGrabbedVisual, startCountdown, startGameOver, updateVisualsFromOffset, vibrate]);
 
-      const now = ctx.currentTime;
-      gain.gain.setValueAtTime(0.05, now);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+  const startFromInstructions = useCallback(() => {
+    ensureAudioContext();
+    startCountdown(roundNumberRef.current);
+  }, [ensureAudioContext, startCountdown]);
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.42);
-    } catch {
-      // no-op
+  const handlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    if (phaseRef.current === 'instructions') {
+      startFromInstructions();
+      return;
     }
+
+    if (phaseRef.current !== 'playing') return;
+
+    if (isMobileLayout) {
+      if (event.clientY < window.innerHeight * 0.5) return;
+      dragLastXRef.current = event.clientY;
+      currentDragXRef.current = event.clientY;
+    } else {
+      if (event.clientX < window.innerWidth * 0.5) return;
+      dragLastXRef.current = event.clientX;
+      currentDragXRef.current = event.clientX;
+    }
+
+    isDraggingRef.current = true;
+
+    setBlueGrabbedVisual(true);
+    playTone(600, 30, 0.04);
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }, [isMobileLayout, playTone, setBlueGrabbedVisual, startFromInstructions]);
+
+  const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (phaseRef.current !== 'playing' || !isDraggingRef.current) return;
+    currentDragXRef.current = isMobileLayout ? event.clientY : event.clientX;
+  }, [isMobileLayout]);
+
+  const handlePointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    if (phaseRef.current !== 'playing') return;
+    if (!isDraggingRef.current) return;
+
+    isDraggingRef.current = false;
+    setBlueGrabbedVisual(false);
+    playTone(150, 60, 0.04);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, [playTone, setBlueGrabbedVisual]);
+
+  useEffect(() => {
+    phaseRef.current = gamePhase;
+  }, [gamePhase]);
+
+  useEffect(() => {
+    roundNumberRef.current = roundNumber;
+  }, [roundNumber]);
+
+  useEffect(() => {
+    aiScoreRef.current = aiScore;
+  }, [aiScore]);
+
+  useEffect(() => {
+    userScoreRef.current = userScore;
+  }, [userScore]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    let themeMeta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    const createdMeta = !themeMeta;
+    const previousTheme = themeMeta?.getAttribute('content') ?? null;
+
+    if (!themeMeta) {
+      themeMeta = document.createElement('meta');
+      themeMeta.setAttribute('name', 'theme-color');
+      document.head.appendChild(themeMeta);
+    }
+
+    themeMeta.setAttribute('content', '#000000');
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+
+      if (themeMeta) {
+        if (createdMeta) {
+          themeMeta.remove();
+        } else if (previousTheme !== null) {
+          themeMeta.setAttribute('content', previousTheme);
+        } else {
+          themeMeta.removeAttribute('content');
+        }
+      }
+    };
   }, []);
 
-  const triggerFreeze = useCallback(() => {
-    if (freezeStartedRef.current) return;
-    freezeStartedRef.current = true;
+  useEffect(() => {
+    updateVisualsFromOffset(ropeOffsetRef.current);
 
-    clearTimerInterval();
-    clearIdleTimer();
-    setIsFrozen(true);
-    setShowDarkOverlay(true);
+    const onResize = () => {
+      setIsMobileLayout(window.innerWidth <= MOBILE_BREAKPOINT);
+      updateVisualsFromOffset(ropeOffsetRef.current);
+    };
 
-    const phaseFiveId = window.setTimeout(() => {
-      setShowFirstLine(true);
-      playFreezeTone();
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+    };
+  }, [updateVisualsFromOffset]);
+
+  useEffect(() => {
+    if (gamePhase === 'instructions' || gamePhase === 'gameOver') {
+      if (bgTintRef.current) {
+        bgTintRef.current.style.background = 'rgba(0,0,0,0)';
+      }
+      if (flashRef.current) {
+        flashRef.current.style.opacity = '0';
+      }
+      return;
+    }
+
+    const raf = requestAnimationFrame(() => {
+      updateVisualsFromOffset(ropeOffsetRef.current);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+    };
+  }, [gamePhase, updateVisualsFromOffset]);
+
+  useEffect(() => {
+    if (gamePhase !== 'playing') {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      return;
+    }
+
+    roundResolvedRef.current = false;
+    elapsedTimeRef.current = 0;
+    lastFrameTsRef.current = null;
+
+    const loop = (timestamp: number) => {
+      if (phaseRef.current !== 'playing') return;
+
+      const lastTs = lastFrameTsRef.current;
+      lastFrameTsRef.current = timestamp;
+
+      const dtMs = lastTs === null ? 16.667 : Math.min(50, Math.max(8, timestamp - lastTs));
+      const dtFrames = dtMs / (1000 / 60);
+
+      elapsedTimeRef.current += dtMs / 1000;
+      const elapsed = elapsedTimeRef.current;
+
+      const aiForce = baseAiForceForRound(roundNumberRef.current);
+      const metricsBefore = getRopeMetrics(ropeOffsetRef.current);
+      let aiMultiplier = userScoreRef.current >= 1 ? 1.35 : 1;
+      if (metricsBefore.normalized >= 0.6) {
+        aiMultiplier *= 1.5;
+      }
+      const scaledAiForce = aiForce * aiMultiplier;
+      aiForceRef.current = scaledAiForce;
+
+      if (isDraggingRef.current) {
+        const fingerDelta = currentDragXRef.current - dragLastXRef.current;
+        dragLastXRef.current = currentDragXRef.current;
+        ropeOffsetRef.current += fingerDelta * 0.15;
+
+        if (timestamp - lastCreakTsRef.current >= 200) {
+          playNoiseBurst(30, 400, 0.02);
+          lastCreakTsRef.current = timestamp;
+        }
+      }
+
+      ropeOffsetRef.current -= scaledAiForce * dtFrames;
+      const metrics = getRopeMetrics(ropeOffsetRef.current);
+      const winOffsetSpan = metrics.userWinOffset - metrics.aiWinOffset;
+      const nearGoal = ropeOffsetRef.current <= metrics.aiWinOffset + winOffsetSpan * 0.2
+        || ropeOffsetRef.current >= metrics.userWinOffset - winOffsetSpan * 0.2;
+      if (ropeRef.current) {
+        if (isDraggingRef.current && scaledAiForce > 0) {
+          const intensity = nearGoal ? 2 : 1;
+          if (metrics.isMobile) {
+            ropeRef.current.style.transform = `translateX(${(Math.random() * 2 - 1) * intensity}px)`;
+          } else {
+            ropeRef.current.style.transform = `translateY(${(Math.random() * 2 - 1) * intensity}px)`;
+          }
+        } else {
+          ropeRef.current.style.transform = metrics.isMobile ? 'translateX(0px)' : 'translateY(0px)';
+        }
+      }
+
+      updateVisualsFromOffset(ropeOffsetRef.current);
+
+      const userWinThreshold = metrics.isMobile
+        ? metrics.ropeCenterY
+        : metrics.ropeCenterX;
+
+      if (metrics.ropeStart <= metrics.goalMin) {
+        endRound('ai');
+        return;
+      }
+
+      if (metrics.ropeStart >= userWinThreshold) {
+        endRound('user');
+        return;
+      }
+
+      if (elapsed >= 12) {
+        endRound('draw');
+        return;
+      }
+
+      rafRef.current = requestAnimationFrame(loop);
+    };
+
+    rafRef.current = requestAnimationFrame(loop);
+
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [endRound, gamePhase, getRopeMetrics, playNoiseBurst, updateVisualsFromOffset]);
+
+  useEffect(() => {
+    return () => {
+      clearQueuedTimeouts();
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+
       try {
-        navigator.vibrate([40, 30, 60]);
+        audioMasterRef.current?.disconnect();
       } catch {
         // no-op
       }
-      onRevealRef.current?.();
-    }, 800);
-
-    const secondLineId = window.setTimeout(() => {
-      setShowSecondLine(true);
-    }, 2500);
-
-    timeoutRef.current.push(phaseFiveId, secondLineId);
-  }, [clearIdleTimer, clearTimerInterval, playFreezeTone]);
-
-  const runIdleHint = useCallback(() => {
-    if (hintShownRef.current || freezeStartedRef.current) return;
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    hintShownRef.current = true;
-    const baseY = container.scrollTop;
-    container.scrollTo({ top: baseY + 20, behavior: 'smooth' });
-
-    const returnId = window.setTimeout(() => {
-      container.scrollTo({ top: baseY, behavior: 'smooth' });
-    }, 280);
-
-    timeoutRef.current.push(returnId);
-  }, []);
-
-  const scheduleIdleHint = useCallback(() => {
-    if (hintShownRef.current || freezeStartedRef.current) return;
-    clearIdleTimer();
-    idleTimerRef.current = window.setTimeout(() => {
-      runIdleHint();
-      idleTimerRef.current = null;
-    }, 3000);
-  }, [clearIdleTimer, runIdleHint]);
-
-  useEffect(() => {
-    originalBodyOverflowRef.current = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const existingTheme = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
-    originalThemeColorRef.current = existingTheme?.getAttribute('content') ?? null;
-    setThemeColor('#000000');
-
-    timerIntervalRef.current = window.setInterval(() => {
-      setTimerSeconds((previous) => previous + 1);
-    }, 1000);
-
-    scheduleIdleHint();
-
-    return () => {
-      clearTimerInterval();
-      clearIdleTimer();
-      clearManagedTimeouts();
 
       if (audioCtxRef.current) {
         void audioCtxRef.current.close();
-        audioCtxRef.current = null;
-      }
-
-      document.body.style.overflow = originalBodyOverflowRef.current;
-
-      if (originalThemeColorRef.current !== null) {
-        setThemeColor(originalThemeColorRef.current);
-      } else if (createdThemeMetaRef.current && createdThemeMetaRef.current.parentNode) {
-        createdThemeMetaRef.current.parentNode.removeChild(createdThemeMetaRef.current);
       }
     };
-  }, [clearIdleTimer, clearManagedTimeouts, clearTimerInterval, scheduleIdleHint, setThemeColor]);
+  }, [clearQueuedTimeouts]);
 
-  useEffect(() => {
-    if (timerSeconds >= TIMER_SHOW_AFTER_SECONDS) {
-      setShowTimer(true);
-    }
-    if (timerSeconds >= TIMER_FREEZE_SECONDS && !freezeStartedRef.current) {
-      triggerFreeze();
-    }
-  }, [timerSeconds, triggerFreeze]);
-
-  const handleFeedScroll = useCallback(() => {
-    if (freezeStartedRef.current) return;
-    scheduleIdleHint();
-  }, [scheduleIdleHint]);
-
-  const renderGradientField = (block: ContentBlock) => {
-    if (!block.gradientKind || block.gradientAngle === undefined || block.radialX === undefined || block.radialY === undefined) {
-      return null;
-    }
-
-    const gradient = block.gradientKind === 'linear'
-      ? `linear-gradient(${block.gradientAngle}deg, ${block.palette[0]}, ${block.palette[1]}, ${block.palette[2]})`
-      : `radial-gradient(circle at ${block.radialX}% ${block.radialY}%, ${block.palette[0]}, ${block.palette[1]}, ${block.palette[2]})`;
-
-    return (
-      <>
-        <div style={{ position: 'absolute', inset: 0, backgroundImage: gradient }} />
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            opacity: 0.03,
-            backgroundImage: 'radial-gradient(rgba(255,255,255,0.9) 0.5px, transparent 0.5px)',
-            backgroundSize: '2px 2px',
-            mixBlendMode: 'soft-light',
-          }}
-        />
-      </>
-    );
-  };
-
-  const renderFloatingOrbs = (block: ContentBlock) => {
-    if (!block.orbs || !block.backgroundColor) return null;
-
-    return (
-      <>
-        <div style={{ position: 'absolute', inset: 0, backgroundColor: block.backgroundColor }} />
-        {block.orbs.map((orb, index) => (
-          <div
-            key={`${block.id}-orb-${index}`}
-            className="si-anim"
-            style={{
-              position: 'absolute',
-              width: orb.size,
-              height: orb.size,
-              left: `${orb.x}%`,
-              top: `${orb.y}%`,
-              marginLeft: -orb.size / 2,
-              marginTop: -orb.size / 2,
-              borderRadius: '50%',
-              background: `radial-gradient(circle, ${orb.color} 0%, ${orb.color}99 38%, transparent 75%)`,
-              filter: 'blur(40px)',
-              transform: 'translate3d(0,0,0)',
-              animation: `si-float ${orb.duration}s ease-in-out ${orb.delay}s infinite alternate`,
-              ['--si-dx' as '--si-dx']: `${orb.dx}px`,
-              ['--si-dy' as '--si-dy']: `${orb.dy}px`,
-            } as CSSProperties}
-          />
-        ))}
-      </>
-    );
-  };
-
-  const renderColorBands = (block: ContentBlock) => {
-    if (!block.bands) return null;
-
-    return (
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
-        {block.bands.map((band, index) => (
-          <div
-            key={`${block.id}-band-${index}`}
-            style={{
-              height: `${band.heightPercent}%`,
-              width: '100%',
-              backgroundImage: `linear-gradient(90deg, ${band.colorA}, ${band.colorB})`,
-            }}
-          />
-        ))}
-      </div>
-    );
-  };
-
-  const renderMeshGradient = (block: ContentBlock) => {
-    if (!block.blobs || !block.backgroundColor) return null;
-
-    return (
-      <>
-        <div style={{ position: 'absolute', inset: 0, backgroundColor: block.backgroundColor }} />
-        {block.blobs.map((blob, index) => (
-          <div
-            key={`${block.id}-blob-${index}`}
-            className="si-anim"
-            style={{
-              position: 'absolute',
-              width: `${blob.sizePercent}%`,
-              height: `${blob.sizePercent}%`,
-              left: `${blob.xPercent}%`,
-              top: `${blob.yPercent}%`,
-              borderRadius: '30% 70% 70% 30% / 30% 30% 70% 70%',
-              backgroundColor: blob.color,
-              opacity: 0.7,
-              filter: 'blur(60px)',
-              transform: 'translate3d(0,0,0)',
-              animation: `si-float ${blob.duration}s ease-in-out ${blob.delay}s infinite alternate`,
-              ['--si-dx' as '--si-dx']: `${blob.dx}px`,
-              ['--si-dy' as '--si-dy']: `${blob.dy}px`,
-            } as CSSProperties}
-          />
-        ))}
-      </>
-    );
-  };
-
-  const renderSingleColor = (block: ContentBlock) => {
-    if (!block.singleColor) return null;
-
-    return (
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: `radial-gradient(circle at center, ${block.singleColor} 30%, ${darken(block.singleColor, 0.2)} 75%, rgba(0,0,0,0.3) 100%)`,
-        }}
-      />
-    );
-  };
-
-  const renderParticleDust = (block: ContentBlock) => {
-    if (!block.particles || !block.backgroundColor) return null;
-
-    return (
-      <>
-        <div style={{ position: 'absolute', inset: 0, backgroundColor: block.backgroundColor }} />
-        {block.particles.map((particle, index) => (
-          <div
-            key={`${block.id}-dust-${index}`}
-            className="si-anim"
-            style={{
-              position: 'absolute',
-              left: `${particle.xPercent}%`,
-              top: `${particle.yPercent}%`,
-              width: particle.size,
-              height: particle.size,
-              animation: `si-dust-rise ${particle.riseDuration}s linear ${particle.delay}s infinite`,
-            }}
-          >
-            <div
-              className="si-anim"
-              style={{
-                width: '100%',
-                height: '100%',
-                borderRadius: '50%',
-                backgroundColor: particle.color,
-                opacity: particle.opacity,
-                filter: 'blur(0.5px)',
-                animation: `si-dust-wobble ${particle.wobbleDuration}s ease-in-out ${particle.delay}s infinite alternate`,
-                ['--si-wobble' as '--si-wobble']: `${particle.wobbleDistance}px`,
-              } as CSSProperties}
-            />
-          </div>
-        ))}
-      </>
-    );
-  };
-
-  const renderBlockContent = (block: ContentBlock) => {
-    if (block.type === 'gradientField') return renderGradientField(block);
-    if (block.type === 'floatingOrbs') return renderFloatingOrbs(block);
-    if (block.type === 'colorBands') return renderColorBands(block);
-    if (block.type === 'meshGradient') return renderMeshGradient(block);
-    if (block.type === 'singleColor') return renderSingleColor(block);
-    return renderParticleDust(block);
-  };
+  const isInstructions = gamePhase === 'instructions';
+  const isCountdown = gamePhase === 'countdown';
+  const isRoundEnd = gamePhase === 'roundEnd';
 
   return (
     <div
-      className={isFrozen ? 'scroll-interaction-root scroll-interaction-frozen' : 'scroll-interaction-root'}
+      ref={overlayRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 1000,
-        backgroundColor: '#000000',
+        background: '#000000',
+        touchAction: 'none',
+        overscrollBehavior: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        overflow: 'hidden',
       }}
     >
       <button
         type="button"
+        data-close="true"
+        onPointerDown={(event) => event.stopPropagation()}
         onClick={onClose}
+        aria-label="Close"
         style={{
           position: 'fixed',
-          top: 16,
-          right: 16,
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
+          top: isMobileLayout ? 40 : 80,
+          right: isMobileLayout ? 15 : 48,
+          width: 48,
+          height: 48,
+          borderRadius: 0,
           border: 'none',
-          backgroundColor: 'rgba(255,255,255,0.7)',
-          color: '#0F0F0F',
+          background: 'transparent',
+          color: '#2D3034',
+          fontSize: 40,
+          fontWeight: 300,
+          lineHeight: '48px',
+          textAlign: 'center',
+          padding: 0,
+          zIndex: 1020,
+          cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 24,
-          lineHeight: 1,
-          cursor: 'pointer',
-          zIndex: 1020,
         }}
       >
-        ×
+        {!crossIconFailed && (
+          <img
+            src={CROSS_ICON_SRC}
+            alt=""
+            aria-hidden="true"
+            onError={() => setCrossIconFailed(true)}
+            style={{
+              width: 40,
+              height: 40,
+              display: 'block',
+            }}
+          />
+        )}
+        {crossIconFailed && <span style={{ display: 'block', width: 40, height: 40, lineHeight: '40px' }}>×</span>}
       </button>
 
+      <div ref={bgTintRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
+
+      <div ref={gameElementsRef} style={{ position: 'absolute', inset: 0, opacity: 1 }}>
+        {isInstructions ? (
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: isMobileLayout ? 298 : 372,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 24,
+              textAlign: 'center',
+              pointerEvents: 'none',
+            }}
+          >
+            <div style={{ width: '100%' }}>
+              <div
+                style={{
+                  fontFamily: "'Instrument Serif', serif",
+                  fontSize: isMobileLayout ? 16 : 20,
+                  lineHeight: 1.5,
+                  color: '#D1D1D1',
+                  fontWeight: 400,
+                  fontStyle: 'normal',
+                }}
+              >
+                <span style={{ color: '#C1191C' }}>Scroll</span>
+                {' '}
+                <span style={{ color: '#2E84FF' }}>war</span>
+              </div>
+              <div
+                style={{
+                  fontFamily: "'Instrument Serif', serif",
+                  fontSize: isMobileLayout ? 32 : 40,
+                  lineHeight: 1.5,
+                  color: '#D1D1D1',
+                  fontWeight: 400,
+                  fontStyle: 'normal',
+                }}
+              >
+                drag the blue handle to win
+              </div>
+            </div>
+            <div
+              style={{
+                width: '100%',
+                fontFamily: "'Instrument Serif', serif",
+                fontSize: 20,
+                lineHeight: 1.5,
+                color: '#D1D1D1',
+                fontWeight: 400,
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+                animation: 'scroll-war-pulse 1.2s ease-in-out infinite',
+              }}
+            >
+              {isMobileLayout ? 'ready' : 'ready?'}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                position: 'fixed',
+                top: isMobileLayout ? 40 : 80,
+                left: isMobileLayout ? 24 : 80,
+                zIndex: 1010,
+                pointerEvents: 'none',
+                fontFamily: "'Instrument Serif', serif",
+                fontSize: 32,
+                lineHeight: 1.5,
+                color: '#484848',
+                fontWeight: 400,
+              }}
+            >
+              {userScore}:{aiScore}
+            </div>
+
+            <div
+              ref={ropeRef}
+              style={{
+                position: 'absolute',
+                left: isMobileLayout ? `${MOBILE_ROPE_X_RATIO * 100}%` : `${ROPE_LEFT_RATIO * 100}%`,
+                right: isMobileLayout ? 'auto' : `${(1 - ROPE_RIGHT_RATIO) * 100}%`,
+                top: isMobileLayout ? `${MOBILE_ROPE_TOP_RATIO * 100}%` : `${ROPE_CENTER_Y_RATIO * 100}%`,
+                width: isMobileLayout ? 8 : undefined,
+                height: isMobileLayout ? `${(MOBILE_ROPE_BOTTOM_RATIO - MOBILE_ROPE_TOP_RATIO) * 100}%` : 8,
+                marginTop: isMobileLayout ? 0 : -4,
+                marginLeft: isMobileLayout ? -4 : 0,
+                background: '#FFFFFF',
+                borderRadius: 999,
+                overflow: 'hidden',
+                willChange: 'transform',
+              }}
+            >
+              <div
+                ref={ropeLeftTintRef}
+                style={{
+                  position: 'absolute',
+                  left: isMobileLayout ? 0 : 0,
+                  top: 0,
+                  right: isMobileLayout ? 0 : undefined,
+                  bottom: isMobileLayout ? undefined : 0,
+                  width: isMobileLayout ? '100%' : '50%',
+                  height: isMobileLayout ? '50%' : undefined,
+                  background: 'rgba(230,57,70,0.35)',
+                  opacity: 0,
+                }}
+              />
+              <div
+                ref={ropeRightTintRef}
+                style={{
+                  position: 'absolute',
+                  right: isMobileLayout ? 0 : 0,
+                  top: isMobileLayout ? undefined : 0,
+                  left: isMobileLayout ? 0 : undefined,
+                  bottom: 0,
+                  width: isMobileLayout ? '100%' : '50%',
+                  height: isMobileLayout ? '50%' : undefined,
+                  background: 'rgba(74,144,217,0.35)',
+                  opacity: 0,
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                position: 'absolute',
+                left: isMobileLayout ? `${MOBILE_ROPE_X_RATIO * 100}%` : `${GOAL_LEFT_RATIO * 100}%`,
+                top: isMobileLayout ? `${MOBILE_GOAL_TOP_CENTER_RATIO * 100}%` : `${ROPE_CENTER_Y_RATIO * 100}%`,
+                width: isMobileLayout ? 64.5 : 8,
+                height: isMobileLayout ? 8 : 64,
+                transform: 'translate(-50%, -50%)',
+                background: '#C1191C',
+                borderRadius: 32,
+              }}
+            />
+
+            <div
+              style={{
+                position: 'absolute',
+                left: isMobileLayout ? `${MOBILE_ROPE_X_RATIO * 100}%` : `${GOAL_RIGHT_RATIO * 100}%`,
+                top: isMobileLayout ? `${MOBILE_GOAL_BOTTOM_CENTER_RATIO * 100}%` : `${ROPE_CENTER_Y_RATIO * 100}%`,
+                width: isMobileLayout ? 64.5 : 8,
+                height: isMobileLayout ? 8 : 64,
+                transform: 'translate(-50%, -50%)',
+                background: '#2E84FF',
+                borderRadius: 32,
+              }}
+            />
+
+            <div
+              ref={yellowKnotRef}
+              style={{
+                position: 'absolute',
+                width: 24,
+                height: 24,
+                borderRadius: 8,
+                background: '#FFE374',
+                transform: 'translate(-50%, -50%)',
+                boxShadow: '0 0 10px rgba(255,217,61,0.4)',
+                willChange: 'left, top, box-shadow',
+              }}
+            />
+
+            <div
+              ref={redDotRef}
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                width: 17.716,
+                height: 17.716,
+                borderRadius: '50%',
+                background: '#FFFFFF',
+                border: '3px solid #FF2B2B',
+                transform: 'translate(-50%, -50%)',
+                willChange: 'left, top, box-shadow',
+                zIndex: 6,
+                pointerEvents: 'none',
+              }}
+            />
+
+            <div
+              ref={blueDotRef}
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                width: 17.716,
+                height: 17.716,
+                borderRadius: '50%',
+                border: '3px solid #2E84FF',
+                background: '#FFFFFF',
+                transform: 'translate(-50%, -50%)',
+                transition: 'transform 120ms ease, box-shadow 120ms ease, background 120ms ease',
+                willChange: 'left, top, transform, box-shadow',
+                zIndex: 6,
+              }}
+            />
+
+            {isCountdown && (
+              <div
+                ref={countdownTextRef}
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%) scale(1)',
+                  fontFamily: "'Instrument Serif', serif",
+                  fontSize: 48,
+                  fontWeight: 400,
+                  color: '#FFFFFF',
+                  lineHeight: 1.2,
+                  opacity: 0,
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+
+            {isRoundEnd && roundWinner && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  fontFamily: "'Instrument Serif', serif",
+                  fontSize: 20,
+                  fontWeight: 400,
+                  color: roundWinner === 'ai' ? '#E63946' : roundWinner === 'user' ? '#4A90D9' : '#FFFFFF',
+                  lineHeight: 1.5,
+                  pointerEvents: 'none',
+                  opacity: 0,
+                  animation: 'scroll-war-round-fade 300ms ease forwards',
+                }}
+              >
+                {roundWinner === 'ai' ? 'AI WINS' : roundWinner === 'user' ? 'YOU WIN' : 'DRAW'}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       <div
+        ref={gameOverWrapRef}
         style={{
-          position: 'fixed',
-          top: 20,
-          right: 60,
-          zIndex: 1010,
-          fontFamily: "'SFMono-Regular', ui-monospace, 'Menlo', 'Monaco', monospace",
-          fontSize: 13,
-          letterSpacing: 0.4,
-          color: 'rgba(255,255,255,0.3)',
-          opacity: showTimer ? 0.3 : 0,
-          transition: 'opacity 1000ms ease',
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 'min(82vw, 298px)',
+          textAlign: 'center',
+          opacity: 0,
           pointerEvents: 'none',
         }}
       >
-        {formatClock(timerSeconds)}
+        <div
+          ref={gameOverLine1Ref}
+          style={{
+            fontFamily: "'Instrument Serif', serif",
+            fontSize: isMobileLayout ? 16 : 20,
+            fontWeight: 400,
+            color: '#FFFFFF',
+            lineHeight: 1.5,
+            opacity: 0,
+            transform: 'translateY(10px)',
+          }}
+        />
+        <div
+          ref={gameOverLine2Ref}
+          style={{
+            marginTop: 0,
+            fontFamily: "'Instrument Serif', serif",
+            fontSize: isMobileLayout ? 32 : 40,
+            fontWeight: 400,
+            color: '#D1D1D1',
+            lineHeight: 1.5,
+            opacity: 0,
+            transform: 'translateY(10px)',
+          }}
+        />
+        <div
+          ref={gameOverLine3Ref}
+          style={{
+            marginTop: isMobileLayout ? 24 : 48,
+            fontFamily: "'Instrument Serif', serif",
+            fontSize: isMobileLayout ? 16 : 20,
+            fontWeight: 400,
+            color: '#D1D1D1',
+            textDecoration: 'underline',
+            textUnderlineOffset: 3,
+            lineHeight: 1.5,
+            opacity: 0,
+            transform: 'translateY(10px)',
+          }}
+        />
       </div>
 
       <div
-        ref={scrollContainerRef}
-        onScroll={handleFeedScroll}
+        ref={flashRef}
         style={{
-          width: '100%',
-          height: '100%',
-          overflowY: isFrozen ? 'hidden' : 'auto',
-          overflowX: 'hidden',
-          scrollSnapType: 'y mandatory',
-          WebkitOverflowScrolling: 'touch',
-          touchAction: 'pan-y',
-          overscrollBehaviorY: 'contain',
+          position: 'absolute',
+          inset: 0,
+          background: 'transparent',
+          opacity: 0,
+          transition: 'opacity 120ms ease',
+          pointerEvents: 'none',
+          zIndex: 1005,
         }}
-      >
-        {contentBlocks.map((block) => (
-          <section
-            key={block.id}
-            style={{
-              position: 'relative',
-              width: '100%',
-              height: '100vh',
-              minHeight: '100dvh',
-              overflow: 'hidden',
-              scrollSnapAlign: 'start',
-              flexShrink: 0,
-            }}
-          >
-            {renderBlockContent(block)}
-          </section>
-        ))}
-      </div>
-
-      {(showDarkOverlay || showFirstLine || showSecondLine) && (
-        <>
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              backgroundColor: 'rgba(0,0,0,0.6)',
-              opacity: showDarkOverlay ? 1 : 0,
-              transition: 'opacity 500ms ease',
-              zIndex: 1050,
-              pointerEvents: 'none',
-            }}
-          />
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 1060,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              textAlign: 'center',
-              padding: '0 24px',
-              pointerEvents: 'none',
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                maxWidth: 280,
-                fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-                fontSize: 18,
-                fontWeight: 300,
-                lineHeight: 1.5,
-                letterSpacing: 0.5,
-                color: '#FFFFFF',
-                opacity: showFirstLine ? 1 : 0,
-                transform: showFirstLine ? 'translateY(0)' : 'translateY(10px)',
-                transition: 'opacity 600ms ease, transform 600ms ease',
-              }}
-            >
-              that was 30 seconds you&apos;ll never get back.
-            </p>
-            <p
-              style={{
-                margin: '18px 0 0',
-                fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-                fontSize: 15,
-                lineHeight: 1.5,
-                color: 'rgba(255,255,255,0.5)',
-                opacity: showSecondLine ? 1 : 0,
-                transform: showSecondLine ? 'translateY(0)' : 'translateY(10px)',
-                transition: 'opacity 600ms ease, transform 600ms ease',
-              }}
-            >
-              felt good though right?
-            </p>
-          </div>
-        </>
-      )}
+      />
 
       <style>{`
-        .scroll-interaction-frozen .si-anim {
-          animation-play-state: paused !important;
+        @keyframes scroll-war-pulse {
+          0% { opacity: 0.5; }
+          50% { opacity: 1; }
+          100% { opacity: 0.5; }
         }
-
-        @keyframes si-float {
-          from {
-            transform: translate3d(0, 0, 0);
-          }
-          to {
-            transform: translate3d(var(--si-dx, 0px), var(--si-dy, 0px), 0);
-          }
-        }
-
-        @keyframes si-dust-rise {
-          from {
-            transform: translate3d(0, 0, 0);
-          }
-          to {
-            transform: translate3d(0, -100vh, 0);
-          }
-        }
-
-        @keyframes si-dust-wobble {
-          from {
-            transform: translateX(calc(var(--si-wobble, 6px) * -1));
-          }
-          to {
-            transform: translateX(var(--si-wobble, 6px));
-          }
+        @keyframes scroll-war-round-fade {
+          from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+          to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
         }
       `}</style>
     </div>
