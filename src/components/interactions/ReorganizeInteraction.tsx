@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, type PanInfo } from 'motion/react';
+import poemBgTexture from '../../assets/PoemBG.svg';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -10,7 +11,7 @@ interface ReorganizeProps {
 }
 
 type ItemPhase = 'swipe' | 'sort' | 'placed' | 'dismissed';
-type ItemType = 'notification' | 'tab' | 'social' | 'loose';
+type ItemType = 'notification' | 'tab' | 'social' | 'loose' | 'clothes' | 'papers';
 
 interface ClutterItem {
   id: number;
@@ -34,54 +35,56 @@ const NOTIFICATION_TEXTS = [
   'mom called (3)',
   'rent due tomorrow',
   'screen time: 7h 42m',
-  'storage almost full',
-  'update available',
 ];
 
 const TAB_TEXTS = [
   'how to center a div',
   'am I lactose intolerant quiz',
   'flights to bali one way',
-  'best restaurants near me',
 ];
 
 const SOCIAL_TEXTS = [
   'liked your photo from 2019',
   'your ex started a podcast',
   'new follower: your_mom_42',
-  'tagged you in a memory',
 ];
+
+const CLOTHES_COLORS = {
+  tshirt: ['#4A90D9', '#E63946', '#2D6A4F', '#FFB366'],
+  sock: ['#FFFFFF', '#333333', '#FF6B8A', '#4A90D9'],
+};
+const STICKY_COLORS = ['#FFF9C4', '#FFCCBC', '#C8E6C9', '#BBDEFB'];
+const STICKY_TEXTS = ['remember!', 'call back', 'buy milk', '!!!'];
 
 const DOT_COLORS = ['#FF5F57', '#4A90D9', '#28C840', '#FFB366'];
 const AVATAR_COLORS = ['#FF6B8A', '#4A90D9', '#28C840', '#FFB366'];
 
 const SWIPE_THRESHOLD_VELOCITY = 300;
 const SWIPE_THRESHOLD_OFFSET = 80;
-const SNAP_DISTANCE = 80;
+const ITEM_FRAME_SIZE = 104;
+const SNAP_DISTANCE = 84;
+const SNAP_MARGIN_X = 28;
+const SNAP_MARGIN_Y = 32;
+const GRID_ZONE_FALLBACK_MARGIN = 84;
 const ITEMS_BEFORE_SORT = 12;
-const NOTE_ACCENT = '#2B34D6';
-const SECOND_COMING_STANZA_ONE_A = `Turning and turning in the widening gyre
-The falcon cannot hear the falconer;`;
-const SECOND_COMING_HIGHLIGHT = `Things fall apart; the centre cannot hold;`;
-const SECOND_COMING_STANZA_ONE_B = `Mere anarchy is loosed upon the world,
-The blood-dimmed tide is loosed, and everywhere
-The ceremony of innocence is drowned;
-The best lack all conviction, while the worst
-Are full of passionate intensity.`;
-const SECOND_COMING_STANZA_TWO = `Surely some revelation is at hand;
-Surely the Second Coming is at hand.
-The Second Coming! Hardly are those words out
-When a vast image out of Spiritus Mundi
-Troubles my sight: somewhere in sands of the desert
-A shape with lion body and the head of a man,
-A gaze blank and pitiless as the sun,
-Is moving its slow thighs, while all about it
-Wind shadows of the indignant desert birds.
-The darkness drops again; but now I know
-That twenty centuries of stony sleep
-Were vexed to nightmare by a rocking cradle,
-And what rough beast, its hour come round at last,
-Slouches towards Bethlehem to be born?`;
+const POEM_BG = '#F6EBD9';
+const POEM_TEXT = '#766E60';
+const POEM_DIVIDER = '#CAB78E';
+const POEM_TITLE = 'A Noiseless Patient Spider';
+const POEM_AUTHOR = 'Walt Whitman';
+const POEM_BODY = `A noiseless patient spider,
+I mark’d where on a little promontory it stood isolated,
+Mark’d how to explore the vacant vast surrounding,
+It launch’d forth filament, filament, filament, out of itself,
+Ever unreeling them, ever tirelessly speeding them.
+
+And you O my soul where you stand,
+Surrounded, detached, in measureless oceans of space,
+Ceaselessly musing, venturing, throwing, seeking the spheres
+to connect them,
+Till the bridge you will need be form’d, till the ductile anchor hold,
+Till the gossamer thread you fling catch somewhere, O my
+soul`;
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -89,25 +92,10 @@ function randRange(min: number, max: number) {
   return min + Math.random() * (max - min);
 }
 
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t;
-}
-
 function bgForProgress(cleared: number, total: number): string {
-  const t = Math.min(cleared / total, 1);
-  // #F0EDE8 → #FAFAF8 → #FFFFFF
-  if (t <= 0.5) {
-    const s = t / 0.5;
-    const r = Math.round(lerp(0xF0, 0xFA, s));
-    const g = Math.round(lerp(0xED, 0xFA, s));
-    const b = Math.round(lerp(0xE8, 0xF8, s));
-    return `rgb(${r},${g},${b})`;
-  }
-  const s = (t - 0.5) / 0.5;
-  const r = Math.round(lerp(0xFA, 0xFF, s));
-  const g = Math.round(lerp(0xFA, 0xFF, s));
-  const b = Math.round(lerp(0xF8, 0xFF, s));
-  return `rgb(${r},${g},${b})`;
+  void cleared;
+  void total;
+  return POEM_BG;
 }
 
 function generateItems(): ClutterItem[] {
@@ -122,7 +110,7 @@ function generateItems(): ClutterItem[] {
   const padX = 16;
   const padTop = 80;
   const padBottom = 120;
-  const usableW = vw - padX * 2 - 200; // subtract max item width
+  const usableW = vw - padX * 2 - ITEM_FRAME_SIZE;
   const usableH = vh - padTop - padBottom;
   const cellW = Math.max(1, usableW / cols);
   const cellH = Math.max(1, usableH / rows);
@@ -144,13 +132,13 @@ function generateItems(): ClutterItem[] {
   function nextPos(): { x: number; y: number } {
     const slot = slots[id % slots.length];
     return {
-      x: Math.max(padX, Math.min(vw - 200 - padX, padX + slot.col * cellW + randRange(-jitter, jitter))),
+      x: Math.max(padX, Math.min(vw - ITEM_FRAME_SIZE - padX, padX + slot.col * cellW + randRange(-jitter, jitter))),
       y: Math.max(padTop, Math.min(vh - padBottom, padTop + slot.row * cellH + randRange(-jitter, jitter))),
     };
   }
 
-  // Notifications (6)
-  for (let i = 0; i < 6; i++) {
+  // Notifications (4)
+  for (let i = 0; i < 4; i++) {
     const pos = nextPos();
     items.push({
       id: id++,
@@ -166,8 +154,8 @@ function generateItems(): ClutterItem[] {
     });
   }
 
-  // Tabs (4)
-  for (let i = 0; i < 4; i++) {
+  // Tabs (3)
+  for (let i = 0; i < 3; i++) {
     const pos = nextPos();
     items.push({
       id: id++,
@@ -183,8 +171,8 @@ function generateItems(): ClutterItem[] {
     });
   }
 
-  // Social (4)
-  for (let i = 0; i < 4; i++) {
+  // Social (3)
+  for (let i = 0; i < 3; i++) {
     const pos = nextPos();
     items.push({
       id: id++,
@@ -200,36 +188,58 @@ function generateItems(): ClutterItem[] {
     });
   }
 
-  // Loose items (4)
-  const looseConfigs: { subtype: string; text: string }[] = [
-    { subtype: 'voice', text: '▶ 0:47' },
-    { subtype: 'photo', text: '' },
-    { subtype: 'note', text: 'grocery list: milk, eggs, uh...' },
-    { subtype: 'reminder', text: 'dentist appointment - overdue' },
-  ];
+  // Clothes (4)
+  const clothesSubtypes = ['tshirt', 'sock', 'pants', 'hat'] as const;
   for (let i = 0; i < 4; i++) {
     const pos = nextPos();
+    const subtype = clothesSubtypes[i];
+    let color: string;
+    if (subtype === 'tshirt') color = CLOTHES_COLORS.tshirt[Math.floor(Math.random() * CLOTHES_COLORS.tshirt.length)];
+    else if (subtype === 'sock') color = CLOTHES_COLORS.sock[Math.floor(Math.random() * CLOTHES_COLORS.sock.length)];
+    else if (subtype === 'pants') color = '#2C3E6B';
+    else color = '#333333';
     items.push({
       id: id++,
-      type: 'loose',
-      subtype: looseConfigs[i].subtype,
-      text: looseConfigs[i].text,
+      type: 'clothes',
+      subtype,
+      text: '',
       x: pos.x,
       y: pos.y,
       rotation: randRange(-15, 15),
       zIndex: Math.floor(randRange(1, 20)),
       phase: 'swipe',
       delay: randRange(0, 800),
-      color: DOT_COLORS[i % DOT_COLORS.length],
+      color,
+    });
+  }
+
+  // Papers (4)
+  const papersSubtypes = ['crumpled', 'receipt', 'envelope', 'sticky'] as const;
+  for (let i = 0; i < 4; i++) {
+    const pos = nextPos();
+    const subtype = papersSubtypes[i];
+    let color: string;
+    if (subtype === 'sticky') color = STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)];
+    else if (subtype === 'crumpled') color = '#FFF9C4';
+    else if (subtype === 'envelope') color = '#F5F0EB';
+    else color = '#FFFFFF';
+    items.push({
+      id: id++,
+      type: 'papers',
+      subtype,
+      text: subtype === 'sticky' ? STICKY_TEXTS[Math.floor(Math.random() * STICKY_TEXTS.length)] : '',
+      x: pos.x,
+      y: pos.y,
+      rotation: randRange(-15, 15),
+      zIndex: Math.floor(randRange(1, 20)),
+      phase: 'swipe',
+      delay: randRange(0, 800),
+      color,
     });
   }
 
   return items;
 }
-
-// ── Pastel colors for photo items ────────────────────────────────────────
-
-const PHOTO_PASTELS = ['#FFE0E6', '#E0F0FF', '#E6FFE0', '#FFF5E0', '#F0E0FF'];
 
 // ── Drag style applied to each draggable item ────────────────────────────
 
@@ -237,22 +247,6 @@ const DRAG_ITEM_STYLE: React.CSSProperties = {
   WebkitTouchCallout: 'none',
   WebkitUserDrag: 'none',
 } as React.CSSProperties;
-
-function BloomIcon() {
-  return (
-    <svg width={38} height={56} viewBox="0 0 38 56" fill="none" aria-hidden="true">
-      <path
-        d="M19 44V54M19 44C17 40.5 12 39 9 36.5M19 44C21 40.5 26 39 29 36.5M19 30C12.4 30 7 24.6 7 18C7 11.4 12.4 6 19 6C25.6 6 31 11.4 31 18C31 24.6 25.6 30 19 30Z"
-        stroke={NOTE_ACCENT}
-        strokeWidth={2.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="19" cy="18" r="3" stroke={NOTE_ACCENT} strokeWidth={2.6} />
-      <path d="M11 13C10 14.2 9.5 15.5 9.5 17" stroke={NOTE_ACCENT} strokeWidth={2.6} strokeLinecap="round" />
-    </svg>
-  );
-}
 
 // ── Component ────────────────────────────────────────────────────────────
 
@@ -267,13 +261,17 @@ export default function ReorganizeInteraction({
   const [itemsOpacity, setItemsOpacity] = useState(1);
   const [showPoem, setShowPoem] = useState(false);
   const [occupiedCells, setOccupiedCells] = useState<(number | null)[]>([null, null, null, null, null, null]);
+  const [showSwipeHint, setShowSwipeHint] = useState(false);
+  const [swipeHintFading, setSwipeHintFading] = useState(false);
+  const [showSortHeading, setShowSortHeading] = useState(false);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const dismissedCountRef = useRef(0);
   const onRevealRef = useRef(onReveal);
   onRevealRef.current = onReveal;
   const revealTimersRef = useRef<number[]>([]);
-  const photoColorRef = useRef(PHOTO_PASTELS[Math.floor(Math.random() * PHOTO_PASTELS.length)]);
+  const sortItemRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const swipeHintDismissedRef = useRef(false);
 
   // Lock body scroll on mount, restore on unmount
   useEffect(() => {
@@ -296,6 +294,54 @@ export default function ReorganizeInteraction({
       revealTimersRef.current.forEach(id => clearTimeout(id));
     };
   }, []);
+
+  // ── Theme-color helper ───────────────────────────────────────────────
+  const origThemeRef = useRef<string | null>(null);
+  const origDocBgRef = useRef<string>('');
+  const themeMetaRef = useRef<HTMLMetaElement | null>(null);
+
+  const updateThemeColor = useCallback((color: string) => {
+    const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null
+      || document.createElement('meta');
+    meta.setAttribute('name', 'theme-color');
+    meta.setAttribute('content', color);
+    if (!meta.parentNode) document.head.appendChild(meta);
+    themeMetaRef.current = meta;
+  }, []);
+
+  // ── Status bar bleed: mount/unmount ──────────────────────────────────
+  useEffect(() => {
+    origDocBgRef.current = document.documentElement.style.backgroundColor;
+    const existingMeta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    origThemeRef.current = existingMeta?.getAttribute('content') ?? null;
+
+    document.documentElement.style.backgroundColor = POEM_BG;
+    updateThemeColor(POEM_BG);
+
+    return () => {
+      document.documentElement.style.backgroundColor = origDocBgRef.current;
+      if (origThemeRef.current !== null) {
+        updateThemeColor(origThemeRef.current);
+      } else if (themeMetaRef.current?.parentNode) {
+        themeMetaRef.current.parentNode.removeChild(themeMetaRef.current);
+      }
+    };
+  }, [updateThemeColor]);
+
+  // ── Swipe hint timer ────────────────────────────────────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!swipeHintDismissedRef.current) {
+        setShowSwipeHint(true);
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!showPoem) return;
+    updateThemeColor(POEM_BG);
+  }, [showPoem, updateThemeColor]);
 
   // ── Audio helpers ────────────────────────────────────────────────────
 
@@ -386,62 +432,98 @@ export default function ReorganizeInteraction({
   const placedCount = useMemo(() => items.filter(it => it.phase === 'placed').length, [items]);
 
   const bg = useMemo(() => bgForProgress(dismissedCount + placedCount, 18), [dismissedCount, placedCount]);
+  const isDesktopLayout = typeof window !== 'undefined' ? window.innerWidth >= 1024 : false;
 
   // ── Grid cell positions ──────────────────────────────────────────────
 
-  const gridCells = useMemo(() => {
+  const dragLayout = useMemo(() => {
     const vw = typeof window !== 'undefined' ? window.innerWidth : 375;
     const vh = typeof window !== 'undefined' ? window.innerHeight : 700;
-    const gridW = Math.min(vw - 48, 340);
-    const gap = 12;
-    const cols = 2;
-    const rows = 3;
-    const cellW = (gridW - gap) / cols;
-    const cellH = 64;
-    const totalH = rows * cellH + (rows - 1) * gap;
-    const startX = (vw - gridW) / 2;
+    const desktop = vw >= 1024;
+    const colGap = 40;
+    const rowGap = 32;
+    const cols = desktop ? 3 : 2;
+    const rows = desktop ? 2 : 3;
+    const cellSize = desktop ? 200 : ITEM_FRAME_SIZE;
+    const radius = desktop ? 30.822 : 16;
+    const borderWidth = desktop ? 2.89 : 1.5;
+    const plusSize = desktop ? 46.232 : 24;
+    const totalW = cols * cellSize + (cols - 1) * colGap;
+    const totalH = rows * cellSize + (rows - 1) * rowGap;
+    const startX = (vw - totalW) / 2;
     const startY = (vh - totalH) / 2;
-    const cells: { x: number; y: number; w: number; h: number }[] = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
+
+    const cells: Array<{ x: number; y: number; w: number; h: number; radius: number }> = [];
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
         cells.push({
-          x: startX + c * (cellW + gap),
-          y: startY + r * (cellH + gap),
-          w: cellW,
-          h: cellH,
+          x: startX + col * (cellSize + colGap),
+          y: startY + row * (cellSize + rowGap),
+          w: cellSize,
+          h: cellSize,
+          radius,
         });
       }
     }
-    return cells;
-  }, []);
+    return {
+      desktop,
+      cells,
+      borderWidth,
+      plusSize,
+      footerBottom: desktop ? 109.52 : 69,
+      footerWidth: desktop ? 288 : 153,
+      footerTitleSize: desktop ? 29.737 : 16,
+      footerSubtitleSize: desktop ? 18.586 : 10,
+      poemBodySize: desktop ? 25 : 18,
+      poemPanelWidth: desktop ? 559 : 352,
+      poemTitleSize: 24,
+      poemAuthorSize: 12,
+      dividerWidths: desktop ? [68, 94, 32] : [44, 88, 44],
+    };
+  }, [isDesktopLayout]);
+
+  const gridCells = dragLayout.cells;
 
   // ── Phase transitions ────────────────────────────────────────────────
 
   useEffect(() => {
     if (gamePhase === 'swipe' && dismissedCount >= ITEMS_BEFORE_SORT) {
       // Transition remaining items to sort phase — position them above the grid
-      const vw = typeof window !== 'undefined' ? window.innerWidth : 375;
-      const gridTopY = gridCells.length > 0 ? gridCells[0].y : 200;
-      const aboveY = Math.max(80, gridTopY - 90);
+      const gridTopY = gridCells.length > 0 ? Math.min(...gridCells.map(cell => cell.y)) : 200;
+      const gridLeftX = gridCells.length > 0 ? Math.min(...gridCells.map(cell => cell.x)) : 24;
+      const gridRightX = gridCells.length > 0 ? Math.max(...gridCells.map(cell => cell.x + cell.w)) : 351;
+      const columns = 3;
+      const itemGap = 20;
+      const itemBandWidth = columns * ITEM_FRAME_SIZE + (columns - 1) * itemGap;
+      const startX = gridLeftX + Math.max(0, (gridRightX - gridLeftX - itemBandWidth) / 2);
+      const aboveY = Math.max(72, gridTopY - (dragLayout.desktop ? 168 : 122));
       let sortIdx = 0;
       setItems(prev => prev.map(it => {
         if (it.phase !== 'swipe') return it;
-        const col = sortIdx % 3;
-        const spacing = Math.min(120, (vw - 60) / 3);
-        const xPos = 30 + col * spacing;
+        const col = sortIdx % columns;
+        const row = Math.floor(sortIdx / columns);
+        const xPos = startX + col * (ITEM_FRAME_SIZE + itemGap) + randRange(-6, 6);
+        const yPos = aboveY - row * (dragLayout.desktop ? 76 : 66) + randRange(-6, 6);
         sortIdx++;
-        return { ...it, phase: 'sort' as const, x: xPos, y: aboveY, rotation: randRange(-5, 5) };
+        return { ...it, phase: 'sort' as const, x: xPos, y: yPos, rotation: randRange(-8, 8) };
       }));
       setGamePhase('sort');
-      setTimeout(() => setGridVisible(true), 200);
+      updateThemeColor(POEM_BG);
+      setTimeout(() => {
+        setGridVisible(true);
+        setShowSortHeading(true);
+      }, 200);
     }
-  }, [gamePhase, dismissedCount, gridCells]);
+  }, [gamePhase, dismissedCount, gridCells, dragLayout.desktop, updateThemeColor]);
 
   useEffect(() => {
     if (gamePhase === 'sort' && placedCount === 6) {
       // Start reveal sequence
       setGamePhase('reveal');
       setShowPoem(false);
+      setShowSortHeading(false);
+      updateThemeColor(POEM_BG);
+      document.documentElement.style.backgroundColor = POEM_BG;
       const t1 = setTimeout(() => setItemsOpacity(0.5), 0);
       const t2 = setTimeout(() => setGridOpacity(0), 500);
       const t3 = setTimeout(() => setItemsOpacity(0), 800);
@@ -453,7 +535,7 @@ export default function ReorganizeInteraction({
       }, 1400);
       revealTimersRef.current.push(t1, t2, t3, t4);
     }
-  }, [gamePhase, placedCount, playRevealChord]);
+  }, [gamePhase, placedCount, playRevealChord, updateThemeColor]);
 
   // ── Swipe handler ────────────────────────────────────────────────────
 
@@ -467,6 +549,13 @@ export default function ReorganizeInteraction({
         ox > SWIPE_THRESHOLD_OFFSET || oy > SWIPE_THRESHOLD_OFFSET) {
       const count = dismissedCountRef.current;
       dismissedCountRef.current++;
+
+      // Dismiss swipe hint after 2 swipes
+      if (count + 1 >= 2 && !swipeHintDismissedRef.current) {
+        swipeHintDismissedRef.current = true;
+        setSwipeHintFading(true);
+        setTimeout(() => setShowSwipeHint(false), 300);
+      }
 
       playWhoosh(count);
       if (count < 5) {
@@ -488,41 +577,88 @@ export default function ReorganizeInteraction({
   const handleSortDragEnd = useCallback((itemId: number, _event: PointerEvent | MouseEvent | TouchEvent, info: PanInfo) => {
     const item = items.find(it => it.id === itemId);
     if (!item || item.phase === 'placed') return;
+    if (gridCells.length === 0) return;
 
     const curX = item.x + info.offset.x;
     const curY = item.y + info.offset.y;
+    const itemRect = sortItemRefs.current[itemId]?.getBoundingClientRect();
+    const itemWidth = itemRect?.width ?? ITEM_FRAME_SIZE;
+    const itemHeight = itemRect?.height ?? ITEM_FRAME_SIZE;
+    const centerX = curX + itemWidth / 2;
+    const centerY = curY + itemHeight / 2;
 
-    let bestCell = -1;
-    let bestDist = Infinity;
+    const emptyCells = gridCells
+      .map((cell, index) => ({ cell, index }))
+      .filter(({ index }) => occupiedCells[index] === null);
+    if (emptyCells.length === 0) return;
 
-    for (let ci = 0; ci < gridCells.length; ci++) {
-      if (occupiedCells[ci] !== null) continue;
-      const cell = gridCells[ci];
+    const snapDistance = Math.max(SNAP_DISTANCE, Math.round((gridCells[0]?.w ?? ITEM_FRAME_SIZE) * 0.75));
+    const gridZoneMargin = Math.max(GRID_ZONE_FALLBACK_MARGIN, Math.round((gridCells[0]?.h ?? ITEM_FRAME_SIZE) * 0.6));
+    const gridTop = Math.min(...gridCells.map(cell => cell.y));
+    const gridBottom = Math.max(...gridCells.map(cell => cell.y + cell.h));
+    const isNearGridZone = centerY >= gridTop - gridZoneMargin &&
+      centerY <= gridBottom + gridZoneMargin;
+
+    let expandedCandidate: { index: number; centerDist: number } | null = null;
+    let nearestByEdge: { index: number; edgeDist: number } | null = null;
+    let nearestByCenter: { index: number; centerDist: number } | null = null;
+
+    for (const { cell, index } of emptyCells) {
       const cx = cell.x + cell.w / 2;
       const cy = cell.y + cell.h / 2;
-      const dist = Math.sqrt((curX + 85 - cx) ** 2 + (curY + 35 - cy) ** 2);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestCell = ci;
+
+      const dx = Math.abs(centerX - cx);
+      const dy = Math.abs(centerY - cy);
+      const centerDist = Math.hypot(dx, dy);
+
+      const expandedDx = Math.max(dx - (cell.w / 2 + SNAP_MARGIN_X), 0);
+      const expandedDy = Math.max(dy - (cell.h / 2 + SNAP_MARGIN_Y), 0);
+      const withinExpandedBounds = expandedDx === 0 && expandedDy === 0;
+
+      const edgeDx = Math.max(dx - cell.w / 2, 0);
+      const edgeDy = Math.max(dy - cell.h / 2, 0);
+      const edgeDist = Math.hypot(edgeDx, edgeDy);
+
+      if (!nearestByCenter || centerDist < nearestByCenter.centerDist) {
+        nearestByCenter = { index, centerDist };
+      }
+      if (!nearestByEdge || edgeDist < nearestByEdge.edgeDist) {
+        nearestByEdge = { index, edgeDist };
+      }
+      if (withinExpandedBounds &&
+        (!expandedCandidate || centerDist < expandedCandidate.centerDist)) {
+        expandedCandidate = { index, centerDist };
       }
     }
 
-    if (bestCell >= 0 && bestDist < SNAP_DISTANCE) {
-      const cell = gridCells[bestCell];
-      playClick();
-      try { navigator.vibrate(3); } catch { /* noop */ }
-
-      setOccupiedCells(prev => {
-        const next = [...prev];
-        next[bestCell] = itemId;
-        return next;
-      });
-      setItems(prev => prev.map(it =>
-        it.id === itemId
-          ? { ...it, phase: 'placed' as const, x: cell.x, y: cell.y, rotation: 0, snappedCell: bestCell }
-          : it
-      ));
+    let targetCell = -1;
+    if (expandedCandidate) {
+      targetCell = expandedCandidate.index;
+    } else if (nearestByEdge && nearestByEdge.edgeDist <= snapDistance) {
+      targetCell = nearestByEdge.index;
+    } else if (isNearGridZone && nearestByCenter) {
+      // If the drop ends near the sorting grid, still attach to the nearest free cell.
+      targetCell = nearestByCenter.index;
     }
+
+    if (targetCell < 0) return;
+
+    const cell = gridCells[targetCell];
+    const snapX = cell.x + (cell.w - itemWidth) / 2;
+    const snapY = cell.y + (cell.h - itemHeight) / 2;
+    playClick();
+    try { navigator.vibrate(3); } catch { /* noop */ }
+
+    setOccupiedCells(prev => {
+      const next = [...prev];
+      next[targetCell] = itemId;
+      return next;
+    });
+    setItems(prev => prev.map(it =>
+      it.id === itemId
+        ? { ...it, phase: 'placed' as const, x: snapX, y: snapY, rotation: 0, snappedCell: targetCell }
+        : it
+    ));
   }, [items, gridCells, occupiedCells, playClick]);
 
   // ── Cleanup ──────────────────────────────────────────────────────────
@@ -548,19 +684,22 @@ export default function ReorganizeInteraction({
       return (
         <div style={{
           background: 'white',
-          padding: '12px 16px',
-          borderRadius: 14,
+          width: '100%',
+          height: '100%',
+          padding: '10px',
+          borderRadius: 16,
           display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          minWidth: 100,
-          maxWidth: 200,
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+          gap: 8,
           boxShadow: isPlaced ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
           border: borderStyle,
           overflow: 'hidden',
+          boxSizing: 'border-box',
         }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: item.color, flexShrink: 0 }} />
-          <span style={{ fontSize: 14, color: '#1A1A1A', fontWeight: 500, ...textClip }}>{item.text}</span>
+          <span style={{ fontSize: 12, color: '#1A1A1A', fontWeight: 500, lineHeight: 1.3, width: '100%', ...textClip }}>{item.text}</span>
         </div>
       );
     }
@@ -569,19 +708,23 @@ export default function ReorganizeInteraction({
       return (
         <div style={{
           background: 'white',
-          padding: '10px 14px',
-          borderRadius: 10,
-          minWidth: 100,
-          maxWidth: 200,
+          width: '100%',
+          height: '100%',
+          padding: '8px 10px',
+          borderRadius: 16,
           boxShadow: isPlaced ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
           border: borderStyle,
           overflow: 'hidden',
+          boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#4A90D9', flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: '#666' }}>tab</span>
+            <span style={{ fontSize: 11, color: '#666' }}>tab</span>
           </div>
-          <span style={{ fontSize: 13, color: '#333', ...textClip, display: 'block' }}>{item.text}</span>
+          <span style={{ fontSize: 12, color: '#333', ...textClip, display: 'block', lineHeight: 1.3 }}>{item.text}</span>
         </div>
       );
     }
@@ -590,115 +733,201 @@ export default function ReorganizeInteraction({
       return (
         <div style={{
           background: `linear-gradient(to right, rgba(${item.color === '#FF6B8A' ? '255,107,138' : item.color === '#4A90D9' ? '74,144,217' : item.color === '#28C840' ? '40,200,64' : '255,179,102'}, 0.08), white)`,
-          padding: '12px 16px',
-          borderRadius: 14,
+          width: '100%',
+          height: '100%',
+          padding: '10px',
+          borderRadius: 16,
           display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          minWidth: 100,
-          maxWidth: 200,
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+          gap: 8,
           boxShadow: isPlaced ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
           border: borderStyle,
           overflow: 'hidden',
+          boxSizing: 'border-box',
         }}>
-          <span style={{ width: 24, height: 24, borderRadius: '50%', backgroundColor: item.color, flexShrink: 0 }} />
-          <span style={{ fontSize: 13, color: '#1A1A1A', ...textClip }}>{item.text}</span>
+          <span style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: item.color, flexShrink: 0 }} />
+          <span style={{ fontSize: 11, color: '#1A1A1A', ...textClip, lineHeight: 1.3, width: '100%' }}>{item.text}</span>
         </div>
       );
     }
 
-    // Loose items
-    if (item.subtype === 'voice') {
+    // ── Clothes ──────────────────────────────────────────────────────
+    if (item.type === 'clothes') {
+      if (item.subtype === 'tshirt') {
+        return (
+          <div style={{
+            width: 82,
+            height: 92,
+            backgroundColor: item.color,
+            clipPath: 'polygon(20% 0%, 0% 25%, 15% 25%, 15% 100%, 85% 100%, 85% 25%, 100% 25%, 80% 0%)',
+            boxShadow: isPlaced ? 'none' : 'inset 0 2px 4px rgba(0,0,0,0.1)',
+            filter: isPlaced ? 'none' : 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))',
+          }} />
+        );
+      }
+      if (item.subtype === 'sock') {
+        const stripeColor = item.color === '#FFFFFF' || item.color === '#FF6B8A' ? '#333333' : '#FFFFFF';
+        return (
+          <div style={{
+            width: 45,
+            height: 80,
+            backgroundColor: item.color,
+            borderRadius: '40% 40% 50% 50%',
+            position: 'relative',
+            overflow: 'hidden',
+            filter: isPlaced ? 'none' : 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))',
+          }}>
+            <div style={{ position: 'absolute', left: '10%', right: '10%', top: '30%', height: 2, backgroundColor: stripeColor, opacity: 0.5 }} />
+            <div style={{ position: 'absolute', left: '10%', right: '10%', top: '50%', height: 2, backgroundColor: stripeColor, opacity: 0.5 }} />
+          </div>
+        );
+      }
+      if (item.subtype === 'pants') {
+        return (
+          <div style={{
+            width: 78,
+            height: 94,
+            backgroundColor: item.color,
+            clipPath: 'polygon(10% 0%, 90% 0%, 85% 100%, 55% 100%, 50% 60%, 45% 100%, 15% 100%)',
+            filter: isPlaced ? 'none' : 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))',
+          }} />
+        );
+      }
+      // hat
       return (
-        <div style={{
-          background: '#2D2D2D',
-          color: 'white',
-          padding: '12px 16px',
-          borderRadius: 12,
-          width: 120,
-          fontSize: 14,
-          fontFamily: 'monospace',
-          boxShadow: isPlaced ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
-          border: borderStyle,
-          ...textClip,
-        }}>
-          {item.text}
+        <div style={{ position: 'relative', width: 74, height: 56, filter: isPlaced ? 'none' : 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}>
+          <div style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            width: 74,
+            height: 18,
+            borderRadius: '50%',
+            backgroundColor: item.color,
+          }} />
+          <div style={{
+            position: 'absolute',
+            bottom: 8,
+            left: 8,
+            width: 56,
+            height: 36,
+            borderRadius: '50% 50% 0 0',
+            backgroundColor: item.color,
+          }} />
         </div>
       );
     }
 
-    if (item.subtype === 'photo') {
+    // ── Papers ─────────────────────────────────────────────────────
+    if (item.type === 'papers') {
+      if (item.subtype === 'crumpled') {
+        return (
+          <div style={{
+            width: 80,
+            height: 70,
+            backgroundColor: '#FFF9C4',
+            borderRadius: '30% 70% 60% 40% / 50% 40% 70% 60%',
+            background: 'linear-gradient(135deg, rgba(0,0,0,0.05) 0%, transparent 50%, rgba(0,0,0,0.03) 100%), #FFF9C4',
+            filter: isPlaced ? 'none' : 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))',
+          }} />
+        );
+      }
+      if (item.subtype === 'receipt') {
+        return (
+          <div style={{
+            width: 56,
+            height: 94,
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E0E0E0',
+            borderBottom: '2px dashed #E0E0E0',
+            padding: '8px 7px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            filter: isPlaced ? 'none' : 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))',
+          }}>
+            <div style={{ width: '90%', height: 2, backgroundColor: '#E0E0E0' }} />
+            <div style={{ width: '70%', height: 2, backgroundColor: '#E0E0E0' }} />
+            <div style={{ width: '85%', height: 2, backgroundColor: '#E0E0E0' }} />
+            <div style={{ width: '60%', height: 2, backgroundColor: '#E0E0E0' }} />
+            <div style={{ width: '75%', height: 2, backgroundColor: '#E0E0E0' }} />
+          </div>
+        );
+      }
+      if (item.subtype === 'envelope') {
+        return (
+          <div style={{
+            width: 88,
+            height: 62,
+            backgroundColor: '#F5F0EB',
+            position: 'relative',
+            overflow: 'hidden',
+            borderBottom: '2px solid rgba(0,0,0,0.06)',
+            filter: isPlaced ? 'none' : 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))',
+          }}>
+            {/* V-shape flap */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: 0,
+              height: 0,
+              borderLeft: '44px solid #EBE5DD',
+              borderRight: '44px solid #EBE5DD',
+              borderBottom: '24px solid transparent',
+            }} />
+          </div>
+        );
+      }
+      // sticky note
       return (
         <div style={{
-          width: 100,
+          width: 80,
           height: 80,
-          backgroundColor: photoColorRef.current,
-          borderRadius: 12,
+          backgroundColor: item.color,
           position: 'relative',
-          overflow: 'hidden',
-          boxShadow: isPlaced ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
-          border: borderStyle,
+          boxShadow: isPlaced ? 'none' : '3px 3px 6px rgba(0,0,0,0.1)',
         }}>
-          {/* Sun */}
+          <span style={{
+            position: 'absolute',
+            top: 12,
+            left: 8,
+            fontSize: 10,
+            color: 'rgba(0,0,0,0.4)',
+            fontStyle: 'italic',
+          }}>
+            {item.text}
+          </span>
+          {/* Curled corner */}
           <div style={{
-            position: 'absolute', top: 12, right: 16,
-            width: 14, height: 14, borderRadius: '50%',
-            backgroundColor: 'rgba(255,200,50,0.6)',
-          }} />
-          {/* Mountain */}
-          <div style={{
-            position: 'absolute', bottom: 0, left: 10,
-            width: 0, height: 0,
-            borderLeft: '25px solid transparent',
-            borderRight: '25px solid transparent',
-            borderBottom: '35px solid rgba(0,0,0,0.1)',
-          }} />
-          <div style={{
-            position: 'absolute', bottom: 0, left: 35,
-            width: 0, height: 0,
-            borderLeft: '30px solid transparent',
-            borderRight: '30px solid transparent',
-            borderBottom: '45px solid rgba(0,0,0,0.08)',
+            position: 'absolute',
+            bottom: 0,
+            right: 0,
+            width: 16,
+            height: 16,
+            background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.06) 50%)',
           }} />
         </div>
       );
     }
 
-    if (item.subtype === 'note') {
-      return (
-        <div style={{
-          background: '#FFF9C4',
-          padding: '12px 14px',
-          borderRadius: 12,
-          fontSize: 13,
-          fontStyle: 'italic',
-          color: '#333',
-          minWidth: 100,
-          maxWidth: 200,
-          boxShadow: isPlaced ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
-          border: borderStyle,
-          ...textClip,
-        }}>
-          {item.text}
-        </div>
-      );
-    }
-
-    // reminder
+    // Fallback for any remaining loose items
     return (
       <div style={{
         background: 'white',
-        padding: '12px 14px',
-        borderRadius: 12,
-        fontSize: 13,
+        width: '100%',
+        height: '100%',
+        padding: '10px',
+        borderRadius: 16,
+        fontSize: 12,
         color: '#1A1A1A',
-        minWidth: 100,
-        maxWidth: 200,
+        display: 'flex',
+        alignItems: 'center',
         boxShadow: isPlaced ? 'none' : '0 2px 12px rgba(0,0,0,0.1)',
         border: borderStyle,
-        borderLeftColor: '#FF5F57',
-        borderLeftWidth: 3,
-        borderLeftStyle: 'solid',
+        boxSizing: 'border-box',
         ...textClip,
       }}>
         {item.text}
@@ -715,6 +944,10 @@ export default function ReorganizeInteraction({
         inset: 0,
         zIndex: 1000,
         backgroundColor: bg,
+        backgroundImage: `url(${poemBgTexture})`,
+        backgroundSize: 'auto',
+        backgroundPosition: 'top left',
+        backgroundRepeat: 'repeat',
         transition: 'background-color 500ms ease',
         fontFamily: "system-ui, -apple-system, sans-serif",
         overflow: 'hidden',
@@ -740,20 +973,63 @@ export default function ReorganizeInteraction({
           width: 40,
           height: 40,
           borderRadius: '50%',
-          backgroundColor: 'white',
-          border: 'none',
+          backgroundColor: showPoem ? 'rgba(246, 235, 217, 0.88)' : 'white',
+          border: showPoem ? '1px solid rgba(118,110,96,0.24)' : 'none',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: 20,
-          color: '#666',
+          color: showPoem ? POEM_TEXT : '#666',
           cursor: 'pointer',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
+          boxShadow: showPoem ? 'none' : '0 4px 15px rgba(0,0,0,0.15)',
           lineHeight: 1,
         }}
       >
         ×
       </button>
+
+      {/* Sort footer copy */}
+      {showSortHeading && gamePhase === 'sort' && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          style={{
+            position: 'absolute',
+            bottom: `calc(${dragLayout.footerBottom}px + env(safe-area-inset-bottom))`,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: dragLayout.footerWidth,
+            textAlign: 'center',
+            color: '#AF9771',
+            zIndex: 10,
+            pointerEvents: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'Instrument Serif', 'Iowan Old Style', Georgia, serif",
+              fontSize: dragLayout.footerTitleSize,
+              lineHeight: 1.5,
+              fontWeight: 400,
+            }}
+          >
+            drag and drop items
+          </span>
+          <span
+            style={{
+              fontSize: dragLayout.footerSubtitleSize,
+              lineHeight: 1.5,
+              fontWeight: 400,
+            }}
+          >
+            Let&apos;s clean up
+          </span>
+        </motion.div>
+      )}
 
       {/* Grid cells (sort phase) */}
       {gridVisible && gamePhase !== 'reveal' && (
@@ -767,11 +1043,33 @@ export default function ReorganizeInteraction({
                 top: cell.y,
                 width: cell.w,
                 height: cell.h,
-                border: occupiedCells[i] !== null ? '2px solid transparent' : '2px dashed #E0E0E0',
-                borderRadius: 14,
+                border: occupiedCells[i] !== null
+                  ? `${dragLayout.borderWidth}px solid rgba(118,110,96,0.2)`
+                  : `${dragLayout.borderWidth}px dashed rgba(118,110,96,0.3)`,
+                borderRadius: cell.radius,
+                backgroundColor: 'transparent',
                 transition: 'border-color 300ms ease',
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxSizing: 'border-box',
               }}
-            />
+            >
+              {occupiedCells[i] === null && (
+                <span
+                  style={{
+                    fontFamily: "'Instrument Serif', 'Iowan Old Style', Georgia, serif",
+                    fontSize: dragLayout.plusSize,
+                    lineHeight: 1,
+                    fontWeight: 400,
+                    color: 'rgba(118,110,96,0.3)',
+                  }}
+                >
+                  +
+                </span>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -788,8 +1086,9 @@ export default function ReorganizeInteraction({
                 top: cell.y,
                 width: cell.w,
                 height: cell.h,
-                border: '2px dashed #E0E0E0',
-                borderRadius: 14,
+                border: `${dragLayout.borderWidth}px dashed rgba(118,110,96,0.3)`,
+                borderRadius: cell.radius,
+                backgroundColor: 'transparent',
               }}
             />
           ))}
@@ -816,7 +1115,13 @@ export default function ReorganizeInteraction({
               zIndex: item.zIndex,
               touchAction: 'none',
               cursor: 'grab',
-              maxWidth: 200,
+              width: ITEM_FRAME_SIZE,
+              height: ITEM_FRAME_SIZE,
+              overflow: 'hidden',
+              borderRadius: 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               ...DRAG_ITEM_STYLE,
             }}
             whileDrag={{ scale: 1.05, cursor: 'grabbing' }}
@@ -826,12 +1131,38 @@ export default function ReorganizeInteraction({
         ))}
       </AnimatePresence>
 
+      {/* Swipe to clear hint */}
+      {showSwipeHint && gamePhase === 'swipe' && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 40,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            fontSize: 14,
+            fontWeight: 400,
+            color: '#AAA',
+            letterSpacing: 0.5,
+            zIndex: 25,
+            pointerEvents: 'none',
+            opacity: swipeHintFading ? 0 : undefined,
+            transition: swipeHintFading ? 'opacity 300ms ease' : undefined,
+            animation: swipeHintFading ? undefined : 'swipe-hint-fadein 600ms ease forwards, swipe-hint-sway 2s 600ms ease-in-out infinite',
+          }}
+        >
+          swipe to clear
+        </div>
+      )}
+
       {/* Sort phase items */}
       {(gamePhase === 'sort' || gamePhase === 'reveal') && sortItems.map(item => {
         const isPlaced = item.phase === 'placed';
         return (
           <motion.div
             key={item.id}
+            ref={(node) => {
+              sortItemRefs.current[item.id] = node;
+            }}
             initial={gamePhase === 'sort' ? { scale: 1 } : false}
             animate={{
               x: item.x,
@@ -852,7 +1183,13 @@ export default function ReorganizeInteraction({
               zIndex: isPlaced ? 5 : item.zIndex + 20,
               touchAction: 'none',
               cursor: isPlaced ? 'default' : 'grab',
-              maxWidth: 200,
+              width: ITEM_FRAME_SIZE,
+              height: ITEM_FRAME_SIZE,
+              overflow: 'hidden',
+              borderRadius: 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               ...DRAG_ITEM_STYLE,
             }}
             whileDrag={!isPlaced ? { scale: 1.05, cursor: 'grabbing' } : undefined}
@@ -871,16 +1208,17 @@ export default function ReorganizeInteraction({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
             style={{
-              position: 'absolute',
+              position: 'fixed',
               inset: 0,
               display: 'flex',
-              alignItems: 'flex-start',
+              alignItems: 'stretch',
               justifyContent: 'center',
               zIndex: 30,
-              paddingTop: 'max(env(safe-area-inset-top), 44px)',
-              paddingRight: 'max(env(safe-area-inset-right), 20px)',
-              paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
-              paddingLeft: 'max(env(safe-area-inset-left), 20px)',
+              backgroundColor: POEM_BG,
+              backgroundImage: `url(${poemBgTexture})`,
+              backgroundSize: 'auto',
+              backgroundPosition: 'top left',
+              backgroundRepeat: 'repeat',
               overflowY: 'auto',
               touchAction: 'pan-y',
               WebkitOverflowScrolling: 'touch',
@@ -889,88 +1227,123 @@ export default function ReorganizeInteraction({
             <div
               style={{
                 width: '100%',
-                maxWidth: 620,
+                maxWidth: dragLayout.desktop ? 'none' : 393,
                 margin: '0 auto',
                 textAlign: 'center',
-                fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-                color: '#1E1E1E',
-                paddingBottom: 24,
+                color: POEM_TEXT,
+                paddingTop: dragLayout.desktop
+                  ? 'max(env(safe-area-inset-top), 24px)'
+                  : 'max(env(safe-area-inset-top), 44px)',
+                paddingRight: dragLayout.desktop
+                  ? 'max(env(safe-area-inset-right), 24px)'
+                  : 'max(env(safe-area-inset-right), 20px)',
+                paddingBottom: dragLayout.desktop
+                  ? 'max(env(safe-area-inset-bottom), 24px)'
+                  : 'max(env(safe-area-inset-bottom), 28px)',
+                paddingLeft: dragLayout.desktop
+                  ? 'max(env(safe-area-inset-left), 24px)'
+                  : 'max(env(safe-area-inset-left), 20px)',
+                boxSizing: 'border-box',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: dragLayout.desktop ? 'center' : 'space-between',
+                minHeight: '100dvh',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <BloomIcon />
+              <div
+                style={dragLayout.desktop
+                  ? {
+                    width: dragLayout.poemPanelWidth,
+                    margin: '0 auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 32,
+                    alignItems: 'center',
+                  }
+                  : { width: '100%' }}
+              >
+                <div
+                  style={dragLayout.desktop
+                    ? {
+                      width: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 64,
+                      alignItems: 'center',
+                    }
+                    : { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingTop: 28 }}
+                >
+                  <p
+                    style={{
+                      margin: 0,
+                      width: '100%',
+                      maxWidth: dragLayout.poemPanelWidth,
+                      fontFamily: "'Instrument Serif', 'Iowan Old Style', Georgia, serif",
+                      fontSize: dragLayout.poemBodySize,
+                      lineHeight: 1.5,
+                      fontWeight: 400,
+                      whiteSpace: 'pre-line',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {POEM_BODY}
+                  </p>
+                  {dragLayout.desktop && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
+                      {dragLayout.dividerWidths.map((w, idx) => (
+                        <span key={`poem-divider-desktop-${idx}`} style={{ width: w, height: 1, backgroundColor: POEM_DIVIDER, opacity: 0.9 }} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ width: dragLayout.desktop ? 207 : '100%', paddingTop: dragLayout.desktop ? 0 : 24 }}>
+                  {!dragLayout.desktop && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 22, marginBottom: 18 }}>
+                      {dragLayout.dividerWidths.map((w, idx) => (
+                        <span key={`poem-divider-mobile-${idx}`} style={{ width: w, height: 1, backgroundColor: POEM_DIVIDER, opacity: 0.9 }} />
+                      ))}
+                    </div>
+                  )}
+                  <p
+                    style={{
+                      margin: 0,
+                      fontFamily: "'Instrument Serif', 'Iowan Old Style', Georgia, serif",
+                      fontSize: dragLayout.poemTitleSize,
+                      lineHeight: 1.2,
+                      color: '#151515',
+                    }}
+                  >
+                    {POEM_TITLE}
+                  </p>
+                  <p
+                    style={{
+                      margin: '2px 0 0',
+                      fontFamily: "'Instrument Serif', 'Iowan Old Style', Georgia, serif",
+                      fontSize: dragLayout.poemAuthorSize,
+                      lineHeight: 1.4,
+                      color: '#151515',
+                    }}
+                  >
+                    {POEM_AUTHOR}
+                  </p>
+                </div>
               </div>
-
-              <p
-                style={{
-                  margin: '18px 0 0',
-                  fontFamily: "'Instrument Serif', 'Iowan Old Style', Georgia, serif",
-                  fontSize: 32,
-                  lineHeight: 1.1,
-                  color: '#151515',
-                }}
-              >
-                The Second Coming
-              </p>
-              <p style={{ margin: '8px 0 0', fontSize: 12, letterSpacing: '0.08em', color: '#787878' }}>
-                W. B. YEATS
-              </p>
-
-              <p
-                style={{
-                  margin: '28px auto 0',
-                  maxWidth: 640,
-                  fontSize: 16,
-                  lineHeight: 1.5,
-                  fontWeight: 400,
-                  whiteSpace: 'pre-line',
-                }}
-              >
-                {SECOND_COMING_STANZA_ONE_A}
-              </p>
-
-              <p
-                style={{
-                  margin: '18px auto 0',
-                  maxWidth: 660,
-                  fontSize: 16,
-                  lineHeight: 1.35,
-                  fontWeight: 400,
-                  color: NOTE_ACCENT,
-                }}
-              >
-                {SECOND_COMING_HIGHLIGHT}
-              </p>
-
-              <p
-                style={{
-                  margin: '18px auto 0',
-                  maxWidth: 640,
-                  fontSize: 16,
-                  lineHeight: 1.5,
-                  fontWeight: 400,
-                  whiteSpace: 'pre-line',
-                }}
-              >
-                {SECOND_COMING_STANZA_ONE_B}
-              </p>
-
-              <p
-                style={{
-                  margin: '34px auto 0',
-                  maxWidth: 660,
-                  fontSize: 16,
-                  lineHeight: 1.5,
-                  fontWeight: 400,
-                  whiteSpace: 'pre-line',
-                }}
-              >
-                {SECOND_COMING_STANZA_TWO}
-              </p>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      <style>{`
+        @keyframes swipe-hint-fadein {
+          from { opacity: 0; }
+          to { opacity: 0.5; }
+        }
+        @keyframes swipe-hint-sway {
+          0%, 100% { transform: translateX(-50%); }
+          50% { transform: translateX(calc(-50% + 5px)); }
+        }
+      `}</style>
     </motion.div>
   );
 }

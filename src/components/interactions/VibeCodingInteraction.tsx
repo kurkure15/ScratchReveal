@@ -32,7 +32,7 @@ const INITIAL_CODE = [
   '  deployToProduction(); // just try again',
   '}',
   '',
-  '// mass approved by copilot',
+  '// approved by mass copilot',
   'function reviewCode(pr) {',
   '  return "lgtm";',
   '}',
@@ -44,16 +44,16 @@ const INITIAL_CODE = [
 ].join('\n');
 
 const TAP_SNIPPETS = [
-  "// I mass mass mass ship\nconst deadline = new Date('yesterday');",
-  "// AI wrote this. I mass reviewed it.\nif (Math.random() > 0.5) fix(bug);",
+  "// I mass ship things\nconst deadline = new Date('yesterday');",
+  "// AI wrote this. I mass approved it.\nif (Math.random() > 0.5) fix(bug);",
   "// Stack Overflow said this works\neval('trust me bro');",
   "sleep(until_it_works);",
-  "// mass mass mass mass\ngit.push('--force', '--no-questions');",
-  "const salary = 'enough'.repeat(999);",
-  "// written at 3am\nconst coffee = await brew.map(c => c.drink());",
+  "// no diff too small to approve\ngit.push('--force', '--yolo');",
+  "const salary = 'enough'.repeat(0);",
+  "// written at 3am, shipped at 4am\nconst coffee = await brew();",
   "// this is fine. do not touch\nwhile(true) { hope(); }",
   "return null ?? undefined ?? 'vibes';",
-  "// mass mass ship ship ship\nconsole.log('we are so back');",
+  "// pressed merge before tests finished\nconsole.log('we are so back');",
 ];
 
 const TAPS_TO_REVEAL = 3;
@@ -341,7 +341,7 @@ export default function VibeCodingInteraction({
       }, 200);
 
       sched(() => {
-        typeWarningLine('> threat level: mass mass mass mass critical', '#FF5555');
+        typeWarningLine('> threat level: absolutely critical', '#FF5555');
       }, 1500);
 
       sched(() => {
@@ -379,14 +379,14 @@ export default function VibeCodingInteraction({
 
       const ch = full[typedLenRef.current - 1];
       const isTap = typedLenRef.current > INITIAL_CODE.length;
-      let delay = isTap ? 25 : 35;
+      let delay = isTap ? 18 : 25;
 
       if (ch === '\n') {
         const lines = display.split('\n');
         const done = lines.length >= 2 ? lines[lines.length - 2] : '';
-        if (done.trim().startsWith('//')) delay = 400;
-        else if (done.trim() === '') delay = 300;
-        else delay = 200;
+        if (done.trim().startsWith('//')) delay = 200;
+        else if (done.trim() === '') delay = 100;
+        else delay = 100;
       }
 
       sched(typeNext, delay);
@@ -437,19 +437,19 @@ export default function VibeCodingInteraction({
       }
 
       const steps: Step[] = [
-        { text: '> compiling...', color: '#28C840', speed: 20, pause: 600 },
-        { text: '> bundling mass mass mass mass ', color: '#28C840', speed: 20, pause: 400 },
+        { text: '> compiling...', color: '#28C840', speed: 15, pause: 400 },
+        { text: '> bundling dependencies...', color: '#28C840', speed: 15, pause: 300 },
+        { text: '', color: '#28C840', speed: 0, pause: 100 },
+        { text: '', color: '#28C840', speed: 30, pause: 400, isProgressBar: true },
+        { text: '', color: '#28C840', speed: 0, pause: 100 },
+        { text: '> deploying to production...', color: '#28C840', speed: 15, pause: 600 },
+        { text: '> propagating to 142 edge nodes...', color: '#28C840', speed: 15, pause: 700 },
         { text: '', color: '#28C840', speed: 0, pause: 200 },
-        { text: '', color: '#28C840', speed: 40, pause: 500, isProgressBar: true },
-        { text: '', color: '#28C840', speed: 0, pause: 200 },
-        { text: '> deploying to mass mass mass mass mass mass ', color: '#28C840', speed: 20, pause: 800 },
-        { text: '> mass mass mass mass mass mass mass mass ...', color: '#28C840', speed: 20, pause: 1000 },
-        { text: '', color: '#28C840', speed: 0, pause: 300 },
-        { text: '\u2713 deployed. mass mass mass mass mass mass ', color: '#4EC9B0', speed: 15, pause: 200, effectOnEnd: 'shake' },
-        { text: '\u2713 0 tests passed (0 tests found)', color: '#4EC9B0', speed: 15, pause: 200 },
-        { text: '\u2713 mass mass mass mass mass mass mass ', color: '#4EC9B0', speed: 15, pause: 400 },
-        { text: '', color: '#4EC9B0', speed: 0, pause: 600 },
-        { text: 'mass mass mass mass ship it.', color: '#C586C0', speed: 40, pause: 0, fontSize: 18, fontWeight: 600, effectOnEnd: 'confetti' },
+        { text: '\u2713 deployed. zero downtime.', color: '#4EC9B0', speed: 12, pause: 150, effectOnEnd: 'shake' },
+        { text: '\u2713 0 tests passed (0 tests found)', color: '#4EC9B0', speed: 12, pause: 150 },
+        { text: '\u2713 shipped to 12M users', color: '#4EC9B0', speed: 12, pause: 300 },
+        { text: '', color: '#4EC9B0', speed: 0, pause: 400 },
+        { text: 'shipped. lets go.', color: '#C586C0', speed: 30, pause: 0, fontSize: 18, fontWeight: 600, effectOnEnd: 'confetti' },
       ];
 
       let stepIdx = 0;
@@ -528,12 +528,12 @@ export default function VibeCodingInteraction({
             pi++;
             updateLast(prefix.slice(0, pi));
             if (pi < prefix.length) sched(tick, 20);
-            else { barPhase = 'blocks'; sched(tick, 40); }
+            else { barPhase = 'blocks'; sched(tick, 30); }
           } else if (barPhase === 'blocks') {
             bi++;
             playBlip(800 + (bi - 1) * 20, 30, 0.04);
             updateLast(prefix + '\u2588'.repeat(bi));
-            if (bi < BLOCKS) sched(tick, 40);
+            if (bi < BLOCKS) sched(tick, 30);
             else { barPhase = 'suffix'; sched(tick, 20); }
           } else {
             si++;
@@ -595,6 +595,28 @@ export default function VibeCodingInteraction({
     };
   }, []);
 
+  // ── Full-bleed: theme-color + document background ──────────────────
+  useEffect(() => {
+    const origBg = document.documentElement.style.backgroundColor;
+    document.documentElement.style.backgroundColor = '#1E1E1E';
+
+    const existingMeta = document.querySelector('meta[name="theme-color"]');
+    const origTheme = existingMeta?.getAttribute('content') ?? null;
+    const meta = existingMeta || document.createElement('meta');
+    meta.setAttribute('name', 'theme-color');
+    meta.setAttribute('content', '#1E1E1E');
+    if (!meta.parentNode) document.head.appendChild(meta);
+
+    return () => {
+      document.documentElement.style.backgroundColor = origBg;
+      if (origTheme !== null) {
+        meta.setAttribute('content', origTheme);
+      } else if (meta.parentNode) {
+        meta.parentNode.removeChild(meta);
+      }
+    };
+  }, []);
+
   const handleTap = () => {
     // Init AudioContext on first user gesture
     if (!audioCtxRef.current) {
@@ -638,6 +660,8 @@ export default function VibeCodingInteraction({
       style={{
         position: 'fixed',
         inset: 0,
+        width: '100vw',
+        height: '100dvh',
         zIndex: 1000,
       }}
       initial={{ opacity: 0 }}
@@ -666,6 +690,7 @@ export default function VibeCodingInteraction({
             alignItems: 'center',
             paddingLeft: 12,
             paddingRight: 12,
+            paddingTop: 'env(safe-area-inset-top)',
             flexShrink: 0,
             position: 'relative',
           }}

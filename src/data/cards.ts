@@ -1,3 +1,5 @@
+import scrollCardImage from '../assets/Scroll.svg';
+
 export interface CardData {
   id: string;
   color: string;
@@ -85,16 +87,15 @@ export const cards: CardData[] = [
     reward: "Open to Work",
     image: "https://vemula.me/images/cards/linkedin.png",
   },
-  // Touch Grass as the front (top) card in the stack
+  // Scroll card (opens ScrollInteraction)
   {
     id: "1",
-    color: "#1fc7ff",
-    label: "Touch Grass",
-    headline: "Touch Grass",
-    subtext: "Some things you can only understand by feeling them.",
-    reward: "STAX.AI",
-    url: "https://stax.ai",
-    image: "https://vemula.me/images/cards/stax1.png",
+    color: "#2E84FF",
+    label: "Scroll",
+    headline: "Scroll",
+    subtext: "Totally addictive, totally pointless.",
+    reward: "Scroll",
+    image: scrollCardImage,
     video: undefined,
   },
 ];
